@@ -1,0 +1,10 @@
+# Target configuration for OpenTelemetry Collector
+# Points to the OTLP HTTP endpoint of the collector
+
+authMode: "none"
+
+restURL:
+  baseURL: "http://otel-collector:4318"
+  metricsPath: "/v1/metrics"
+  logsPath: "/v1/logs"
+  tracesPath: "/v1/traces"

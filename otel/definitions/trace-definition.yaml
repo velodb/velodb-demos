@@ -1,0 +1,224 @@
+# E-commerce Trace Definition for VeloDB Demo
+# Simulates realistic request flows through the e-commerce platform
+
+traceCompletionTimeoutSecs: 60
+
+rootSpans:
+  # Create Order - main customer journey
+  - name: "POST /api/orders"
+    spanKind: SPAN_KIND_SERVER
+    reportingResource: api_gateway
+    attributes:
+      http.method: '"POST"'
+      http.route: '"/api/orders"'
+      http.status_code: 'roundRobin(["200", "200", "200", "200", "201", "400", "500"])'
+      http.user_agent: 'roundRobin(["Mozilla/5.0", "Chrome/120.0", "Safari/17.0", "Mobile Safari"])'
+      customer.tier: 'roundRobin(["standard", "premium", "vip"])'
+    childSpans: ["validateOrder", "processOrder"]
+    payloadCount: 99999999
+    copyCount: 5
+    payloadFrequencySeconds: 15
+
+  # Get Product Details - high volume read
+  - name: "GET /api/products/:id"
+    spanKind: SPAN_KIND_SERVER
+    reportingResource: api_gateway
+    attributes:
+      http.method: '"GET"'
+      http.route: '"/api/products/:id"'
+      http.status_code: 'roundRobin(["200", "200", "200", "200", "404"])'
+      product.category: 'roundRobin(["electronics", "clothing", "home", "sports"])'
+    childSpans: ["checkProductCache", "getProductFromDB"]
+    payloadCount: 99999999
+    copyCount: 10
+    payloadFrequencySeconds: 15
+
+  # Checkout - critical path
+  - name: "POST /api/checkout"
+    spanKind: SPAN_KIND_SERVER
+    reportingResource: api_gateway
+    attributes:
+      http.method: '"POST"'
+      http.route: '"/api/checkout"'
+      http.status_code: 'roundRobin(["200", "200", "200", "201", "402", "500"])'
+      payment.method: 'roundRobin(["credit_card", "paypal", "apple_pay", "bank_transfer"])'
+    childSpans: ["validateCart", "processPayment", "updateInventory", "sendConfirmation"]
+    payloadCount: 99999999
+    copyCount: 3
+    payloadFrequencySeconds: 20
+    spanErrorEndsTrace: true
+
+  # User Login
+  - name: "POST /api/auth/login"
+    spanKind: SPAN_KIND_SERVER
+    reportingResource: api_gateway
+    attributes:
+      http.method: '"POST"'
+      http.route: '"/api/auth/login"'
+      http.status_code: 'roundRobin(["200", "200", "200", "401", "429"])'
+      auth.method: 'roundRobin(["password", "oauth", "sso"])'
+    childSpans: ["authenticateUser", "generateToken"]
+    payloadCount: 99999999
+    copyCount: 4
+    payloadFrequencySeconds: 15
+
+  # Health Check
+  - name: "GET /health"
+    spanKind: SPAN_KIND_SERVER
+    reportingResource: api_gateway
+    attributes:
+      http.method: '"GET"'
+      http.route: '"/health"'
+      http.status_code: '"200"'
+    payloadCount: 99999999
+    copyCount: 2
+    payloadFrequencySeconds: 30
+
+childSpans:
+  # Order processing chain
+  - name: "validateOrder"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: order_service
+    childSpans: ["checkUserExists", "validateItems"]
+
+  - name: "checkUserExists"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: user_service
+    childSpans: ["userDbQuery"]
+
+  - name: "userDbQuery"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"SELECT * FROM users WHERE id = $1"'
+      db.operation: '"SELECT"'
+
+  - name: "validateItems"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: inventory_service
+    childSpans: ["inventoryDbQuery"]
+    errorFrequency: 20
+
+  - name: "inventoryDbQuery"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"SELECT stock FROM products WHERE sku IN ($1)"'
+      db.operation: '"SELECT"'
+
+  - name: "processOrder"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: order_service
+    childSpans: ["saveOrder", "publishOrderEvent"]
+    errorFrequency: 15
+
+  - name: "saveOrder"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"INSERT INTO orders (user_id, items, total) VALUES ($1, $2, $3)"'
+      db.operation: '"INSERT"'
+
+  - name: "publishOrderEvent"
+    spanKind: SPAN_KIND_PRODUCER
+    reportingResource: kafka_broker
+    attributes:
+      messaging.destination: '"orders"'
+      messaging.operation: '"publish"'
+
+  # Product cache check
+  - name: "checkProductCache"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: redis_cache
+    attributes:
+      db.operation: '"GET"'
+
+  - name: "getProductFromDB"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"SELECT * FROM products WHERE id = $1"'
+      db.operation: '"SELECT"'
+    errorFrequency: 10
+
+  # Checkout flow
+  - name: "validateCart"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: order_service
+    childSpans: ["getCartFromCache"]
+
+  - name: "getCartFromCache"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: redis_cache
+    attributes:
+      db.operation: '"HGETALL"'
+
+  - name: "processPayment"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: payment_service
+    childSpans: ["callPaymentGateway", "savePaymentRecord"]
+    errorFrequency: 8
+
+  - name: "callPaymentGateway"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: payment_service
+    attributes:
+      http.url: '"https://api.stripe.com/v1/charges"'
+      http.method: '"POST"'
+    errorFrequency: 5
+
+  - name: "savePaymentRecord"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"INSERT INTO payments (order_id, amount, status) VALUES ($1, $2, $3)"'
+      db.operation: '"INSERT"'
+
+  - name: "updateInventory"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: inventory_service
+    childSpans: ["decrementStock"]
+    errorFrequency: 12
+
+  - name: "decrementStock"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"UPDATE products SET stock = stock - $1 WHERE sku = $2"'
+      db.operation: '"UPDATE"'
+
+  - name: "sendConfirmation"
+    spanKind: SPAN_KIND_PRODUCER
+    reportingResource: kafka_broker
+    attributes:
+      messaging.destination: '"notifications"'
+      messaging.operation: '"publish"'
+
+  # Auth flow
+  - name: "authenticateUser"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: user_service
+    childSpans: ["lookupUser", "verifyPassword"]
+    errorFrequency: 10
+
+  - name: "lookupUser"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: postgres_db
+    attributes:
+      db.statement: '"SELECT * FROM users WHERE email = $1"'
+      db.operation: '"SELECT"'
+
+  - name: "verifyPassword"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: user_service
+
+  - name: "generateToken"
+    spanKind: SPAN_KIND_INTERNAL
+    reportingResource: user_service
+    childSpans: ["storeSession"]
+
+  - name: "storeSession"
+    spanKind: SPAN_KIND_CLIENT
+    reportingResource: redis_cache
+    attributes:
+      db.operation: '"SETEX"'

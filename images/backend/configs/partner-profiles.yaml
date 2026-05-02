@@ -1,0 +1,196 @@
+# Partner Profile Configuration
+# Defines 3 partner tiers with different volumes and characteristics
+
+partners:
+  # Enterprise Tier - High Volume Partner
+  - id: 44
+    name: "Acme Enterprise"
+    tier: "enterprise"
+
+    # Volume metrics (daily)
+    volume:
+      orders_per_day: 10000
+      gmv_daily: 2000000  # $2M
+      sku_count: 1000
+
+    # Customer segment distribution
+    customer_segments:
+      vip: 0.70          # 70% VIP customers
+      standard: 0.20     # 20% Standard
+      trial: 0.10        # 10% Trial
+
+    # Customer lifetime value by segment
+    customer_ltv:
+      vip:
+        min: 5000
+        max: 50000
+      standard:
+        min: 500
+        max: 2000
+      trial:
+        min: 0
+        max: 100
+
+    # Product characteristics
+    products:
+      categories: ["Electronics", "Home & Garden", "Fashion", "Sports", "Books", "Toys"]
+      price_distribution:
+        low: 0.20        # 20% low-priced items ($10-$50)
+        mid: 0.60        # 60% mid-priced ($50-$200)
+        high: 0.20       # 20% high-priced ($200-$1000)
+      margin:
+        min: 0.15
+        max: 0.45
+
+    # Growth pattern
+    growth:
+      type: "steady"
+      rate: 0.00         # Stable, no growth
+      volatility: 0.05   # Very low volatility
+
+    # VIP order manipulation settings
+    vip_order:
+      spike_multiplier: 10  # 10x normal order
+      revenue_impact: 0.08  # Should be 8% of hourly revenue
+      min_amount: 5000
+      max_amount: 10000
+
+  # Growth Tier - Medium Volume Partner
+  - id: 45
+    name: "TechRetail"
+    tier: "growth"
+
+    # Volume metrics (daily)
+    volume:
+      orders_per_day: 1000
+      gmv_daily: 150000  # $150K
+      sku_count: 200
+
+    # Customer segment distribution
+    customer_segments:
+      vip: 0.80          # 80% VIP
+      standard: 0.15     # 15% Standard
+      trial: 0.05        # 5% Trial
+
+    # Customer lifetime value by segment
+    customer_ltv:
+      vip:
+        min: 3000
+        max: 20000
+      standard:
+        min: 400
+        max: 1500
+      trial:
+        min: 0
+        max: 80
+
+    # Product characteristics
+    products:
+      categories: ["Electronics", "Software", "Accessories", "Gaming"]
+      price_distribution:
+        low: 0.25
+        mid: 0.55
+        high: 0.20
+      margin:
+        min: 0.20
+        max: 0.40
+
+    # Growth pattern
+    growth:
+      type: "growing"
+      rate: 0.05         # 5% week-over-week growth
+      volatility: 0.10   # Low volatility
+
+    # VIP order manipulation settings
+    vip_order:
+      spike_multiplier: 5
+      revenue_impact: 0.10
+      min_amount: 800
+      max_amount: 2000
+
+  # Startup Tier - Low Volume Partner
+  - id: 46
+    name: "BoutiquePlus"
+    tier: "startup"
+
+    # Volume metrics (daily)
+    volume:
+      orders_per_day: 100
+      gmv_daily: 5000    # $5K
+      sku_count: 50
+
+    # Customer segment distribution
+    customer_segments:
+      vip: 0.90          # 90% VIP (small but loyal customer base)
+      standard: 0.10     # 10% Standard
+      trial: 0.00        # 0% Trial
+
+    # Customer lifetime value by segment
+    customer_ltv:
+      vip:
+        min: 1000
+        max: 5000
+      standard:
+        min: 200
+        max: 800
+      trial:
+        min: 0
+        max: 0
+
+    # Product characteristics
+    products:
+      categories: ["Fashion", "Accessories", "Boutique"]
+      price_distribution:
+        low: 0.30
+        mid: 0.50
+        high: 0.20
+      margin:
+        min: 0.25
+        max: 0.50
+
+    # Growth pattern
+    growth:
+      type: "volatile"
+      rate: 0.00         # No sustained growth
+      volatility: 0.30   # High volatility
+
+    # VIP order manipulation settings
+    vip_order:
+      spike_multiplier: 3
+      revenue_impact: 0.15  # 15% impact (more visible for small partner)
+      min_amount: 300
+      max_amount: 1000
+
+# Global data generation settings
+global:
+  # Time patterns (distribution across day)
+  time_patterns:
+    daytime: 0.60      # 60% during daytime (9am-5pm)
+    evening: 0.30      # 30% evening (5pm-11pm)
+    night: 0.10        # 10% night (11pm-9am)
+
+  # Device distribution
+  device_split:
+    mobile: 0.70       # 70% mobile
+    desktop: 0.25      # 25% desktop
+    tablet: 0.05       # 5% tablet
+
+  # Conversion funnel rates
+  conversion:
+    view_to_cart: 0.10       # 10% of views add to cart
+    cart_to_purchase: 0.30   # 30% of carts convert to purchase
+    overall_conversion: 0.03  # 3% overall (view to purchase)
+
+  # Clickstream event distribution
+  event_distribution:
+    view: 0.50         # 50% product views
+    add_to_cart: 0.30  # 30% add to cart
+    purchase: 0.15     # 15% purchases
+    remove_from_cart: 0.05  # 5% remove from cart
+
+  # Session characteristics
+  session:
+    duration_min: 3    # 3 minutes minimum
+    duration_max: 15   # 15 minutes maximum
+    events_per_session_min: 5
+    events_per_session_max: 25

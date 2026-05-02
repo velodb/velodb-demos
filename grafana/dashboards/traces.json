@@ -1,0 +1,287 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 12,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "doris"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "filterable": true,
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_id"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 139
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": false,
+                    "title": "view trace detail",
+                    "url": "/d/ceihrtqga0zy8c/traces?orgId=${__org}&var-service_name=${service_name}&var-operation=${operation}&var-status=${status}&var-trace_id=${__value.text}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "spans"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (ms)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 124
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errors"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 77
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 22,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "dataset": "__internal_schema",
+          "datasource": {
+            "type": "mysql",
+            "uid": "doris"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with a as (\r\nselect trace_id, min(timestamp) as t\r\n  from otel_traces\r\n  where $__timeFilter(timestamp)\r\n    and service_name = '$service_name'\r\n    and ($operation = 'all' or span_name = $operation)\r\n    and ($status = 'all' or status_code = $status)\r\n  group by trace_id\r\n  order by t desc\r\n  limit 100\r\n)\r\nselect\r\n    unix_timestamp(min(timestamp)) as time,\r\n    max(duration) / 1000 as 'duration (ms)',\r\n    count(*) as spans,\r\n    sum(if('STATUS_CODE_ERROR' = status_code, 1, 0)) as errors,\r\n    trace_id,\r\n    collect_set(service_name) as services\r\nfrom otel_traces\r\nwhere trace_id in (select trace_id from a)\r\ngroup by trace_id\r\nORDER BY time desc\r\n;\r\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Traces",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 40,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "api-gateway",
+          "value": "api-gateway"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "doris"
+        },
+        "definition": "select distinct service_name from otel_traces;",
+        "includeAll": false,
+        "label": "service_name",
+        "name": "service_name",
+        "options": [],
+        "query": "select distinct service_name from otel_traces where service_name <> '' order by service_name",
+        "refresh": 1,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "allValue": "'all'",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "doris"
+        },
+        "definition": "select span_name from otel_traces where service_name = '$service_name' group by span_name;",
+        "includeAll": true,
+        "label": "operation",
+        "name": "operation",
+        "options": [],
+        "query": "select span_name from otel_traces where service_name = '$service_name' group by span_name;",
+        "refresh": 1,
+        "regex": "",
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "allValue": "'all'",
+        "current": {
+          "text": "$__all",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "status",
+        "name": "status",
+        "options": [
+          {
+            "selected": false,
+            "text": "error",
+            "value": "STATUS_CODE_ERROR"
+          },
+          {
+            "selected": false,
+            "text": "ok",
+            "value": "STATUS_CODE_OK"
+          },
+          {
+            "selected": false,
+            "text": "unset",
+            "value": "STATUS_CODE_UNSET"
+          }
+        ],
+        "query": "error : STATUS_CODE_ERROR, ok : STATUS_CODE_OK, unset : STATUS_CODE_UNSET",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "label": "trace_id",
+        "name": "trace_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "query": "0",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "3 Trace",
+  "uid": "deiox7cco78qoe",
+  "version": 11,
+  "weekStart": ""
+}

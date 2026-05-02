@@ -1,0 +1,94 @@
+# E-commerce Microservices Resource Definition for VeloDB Demo
+# Simulates a realistic e-commerce platform with multiple services
+
+resources:
+  # API Gateway - entry point for all requests
+  - name: api_gateway
+    count: 2
+    attributes:
+      service.name: '"api-gateway"'
+      service.namespace: '"ecommerce"'
+      service.version: 'roundRobin(["v1.2.0", "v1.2.1"])'
+      deployment.environment: '"demo"'
+      host.name: 'counter("api-gateway-")'
+      k8s.pod.name: 'counter("api-gateway-pod-")'
+
+  # Order Service - handles order processing
+  - name: order_service
+    count: 3
+    attributes:
+      service.name: '"order-service"'
+      service.namespace: '"ecommerce"'
+      service.version: 'roundRobin(["v2.1.0", "v2.1.1", "v2.0.9"])'
+      deployment.environment: '"demo"'
+      host.name: 'counter("order-service-")'
+      k8s.pod.name: 'counter("order-service-pod-")'
+
+  # Payment Service - handles payment processing
+  - name: payment_service
+    count: 2
+    attributes:
+      service.name: '"payment-service"'
+      service.namespace: '"ecommerce"'
+      service.version: '"v1.5.0"'
+      deployment.environment: '"demo"'
+      host.name: 'counter("payment-service-")'
+      k8s.pod.name: 'counter("payment-service-pod-")'
+
+  # Inventory Service - manages stock
+  - name: inventory_service
+    count: 2
+    attributes:
+      service.name: '"inventory-service"'
+      service.namespace: '"ecommerce"'
+      service.version: '"v1.3.2"'
+      deployment.environment: '"demo"'
+      host.name: 'counter("inventory-service-")'
+      k8s.pod.name: 'counter("inventory-service-pod-")'
+
+  # User Service - handles user management
+  - name: user_service
+    count: 2
+    attributes:
+      service.name: '"user-service"'
+      service.namespace: '"ecommerce"'
+      service.version: '"v1.0.5"'
+      deployment.environment: '"demo"'
+      host.name: 'counter("user-service-")'
+      k8s.pod.name: 'counter("user-service-pod-")'
+
+  # Notification Service - sends emails/SMS
+  - name: notification_service
+    count: 1
+    attributes:
+      service.name: '"notification-service"'
+      service.namespace: '"ecommerce"'
+      service.version: '"v1.1.0"'
+      deployment.environment: '"demo"'
+      host.name: '"notification-service-0"'
+      k8s.pod.name: '"notification-service-pod-0"'
+
+  # Database backends
+  - name: postgres_db
+    count: 1
+    attributes:
+      db.system: '"postgresql"'
+      db.name: '"orders_db"'
+      net.peer.name: '"postgres.ecommerce.svc"'
+      net.peer.port: '"5432"'
+
+  - name: redis_cache
+    count: 1
+    attributes:
+      db.system: '"redis"'
+      net.peer.name: '"redis.ecommerce.svc"'
+      net.peer.port: '"6379"'
+
+  # Kafka messaging
+  - name: kafka_broker
+    count: 1
+    attributes:
+      messaging.system: '"kafka"'
+      messaging.destination: 'roundRobin(["orders", "payments", "notifications"])'
+      net.peer.name: '"kafka.ecommerce.svc"'
+      net.peer.port: '"9092"'

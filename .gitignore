@@ -1,0 +1,28 @@
+# Secrets / local config
+.env
+.env.local
+*.pat
+.docker-credentials
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build artifacts
+node_modules/
+dist/
+**/__pycache__/
+*.pyc
+images/backend/bin/
+images/backend/server
+images/frontend/node_modules/
+images/frontend/dist/
+
+# Test outputs / scratch
+*.log
+**/claude-progress.txt
+.playwright-mcp/

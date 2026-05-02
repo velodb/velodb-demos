@@ -1,0 +1,386 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 14,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "doris"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "dataset": "__internal_schema",
+          "datasource": {
+            "type": "mysql",
+            "uid": "doris"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "select\r\n  $__timeGroup(timestamp, '$interval') as time,\r\n  CAST(attributes ['span.name'] AS STRING) AS span_name,\r\n  sum(count) / (${__interval_ms} / 1000) as QPS\r\nfrom\r\n  otel_metrics_histogram\r\nwhere\r\n  service_name = '${service_name}'\r\n  and metric_name = 'traces.span.metrics.duration'\r\n  and $__timeFilter(timestamp)\r\nGROUP BY\r\n  time,\r\n  span_name\r\nORDER BY\r\n  time,\r\n  span_name;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "RPS (Request Per Second) for each span",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "value all",
+            "binary": {
+              "left": "value {\"app.ads.ad_request_type\":\"NOT_TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}",
+              "operator": "+",
+              "right": "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}"
+            },
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}",
+                "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"TARGETED\"}",
+                "value {\"app.ads.ad_request_type\":\"NOT_TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "doris"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "dataset": "__internal_schema",
+          "datasource": {
+            "type": "mysql",
+            "uid": "doris"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "select\r\n  $__timeGroup(timestamp, '$interval') as time,\r\n  CAST(attributes ['span.name'] AS STRING) AS span_name,\r\n  sum(sum) / sum(count) as avg_duration\r\nfrom\r\n  otel_metrics_histogram\r\nwhere\r\n  service_name = '${service_name}'\r\n  and metric_name = 'traces.span.metrics.duration'\r\n  and $__timeFilter(timestamp)\r\nGROUP BY\r\n  time,\r\n  span_name\r\nORDER BY\r\n  time,\r\n  span_name;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "request duration",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "value all",
+            "binary": {
+              "left": "value {\"app.ads.ad_request_type\":\"NOT_TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}",
+              "operator": "+",
+              "right": "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}"
+            },
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}",
+                "value {\"app.ads.ad_request_type\":\"TARGETED\",\"app.ads.ad_response_type\":\"TARGETED\"}",
+                "value {\"app.ads.ad_request_type\":\"NOT_TARGETED\",\"app.ads.ad_response_type\":\"RANDOM\"}"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        }
+      ],
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 40,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "api-gateway",
+          "value": "api-gateway"
+        },
+        "definition": "select distinct service_name from otel_traces;",
+        "label": "service_name",
+        "name": "service_name",
+        "options": [],
+        "query": "select distinct service_name from otel_traces where service_name <> '' order by service_name",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "auto": false,
+        "auto_count": 30,
+        "auto_min": "10s",
+        "current": {
+          "text": "1m",
+          "value": "1m"
+        },
+        "name": "interval",
+        "options": [
+          {
+            "selected": false,
+            "text": "10s",
+            "value": "10s"
+          },
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": true,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "2m",
+            "value": "2m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          }
+        ],
+        "query": "10s,30s,1m,2m,5m,10m",
+        "refresh": 2,
+        "type": "interval"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "1 Metrics",
+  "uid": "feip1rfsgdp1ca",
+  "version": 12,
+  "weekStart": ""
+}
