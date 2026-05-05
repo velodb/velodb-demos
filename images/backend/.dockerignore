@@ -1,0 +1,15 @@
+# Ignore build artifacts - Dockerfile does fresh go build
+bin/
+*.exe
+backend-server
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Test artifacts
+*.test
+coverage.out

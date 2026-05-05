@@ -1,0 +1,214 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 5,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "mysql",
+        "uid": "doris"
+      },
+      "gridPos": {
+        "h": 22,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "targets": [
+        {
+          "dataset": "__internal_schema",
+          "datasource": {
+            "type": "mysql",
+            "uid": "doris"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select\r\n    trace_id as traceID,\r\n    span_id as spanID,\r\n    parent_span_id as parentSpanID,\r\n    span_name as operationName,\r\n    service_name as serviceName,\r\n    concat('[', array_join(array_map((x,y)->json_object(\"key\", x, \"value\", y),\r\n              map_keys(cast(cast(resource_attributes as text) as map<string, string>)),\r\n              map_values(cast(cast(resource_attributes as text) as map<string, string>))\r\n    ), ','), ']') as serviceTags,\r\n    unix_timestamp(timestamp) * 1000 as startTime,\r\n    duration / 1000 as duration,\r\n    concat('[', array_join(array_map((x,y)->json_object(\"key\", x, \"value\", y),\r\n              map_keys(cast(cast(span_attributes as text) as map<string, string>)),\r\n              map_values(cast(cast(span_attributes as text) as map<string, string>))\r\n    ), ','), ']') as tags,\r\n    span_kind as kind,\r\n    case status_code when 'STATUS_CODE_OK' then 1 when 'STATUS_CODE_ERROR' then 2 else 0 end as statusCode,\r\n    status_message as statusMessage,\r\n    scope_name as instrumentationLibraryName,\r\n    scope_version as instrumentationLibraryVersion,\r\n    trace_state as traceState\r\nfrom otel_traces\r\nwhere trace_id = '$trace_id'\r\n;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Trace",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "other",
+                "targetField": "serviceTags"
+              },
+              {
+                "destinationType": "other",
+                "targetField": "tags"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "traces"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "adservice",
+          "value": "adservice"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "doris"
+        },
+        "definition": "select distinct service_name from otel_traces;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "service_name",
+        "multi": false,
+        "name": "service_name",
+        "options": [],
+        "query": "select distinct service_name from otel_traces;",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "allValue": "'all'",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "mysql",
+          "uid": "doris"
+        },
+        "definition": "select span_name from otel_traces where service_name = '$service_name' group by span_name;",
+        "hide": 0,
+        "includeAll": true,
+        "label": "operation",
+        "multi": false,
+        "name": "operation",
+        "options": [],
+        "query": "select span_name from otel_traces where service_name = '$service_name' group by span_name;",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 5,
+        "type": "query"
+      },
+      {
+        "allValue": "'all'",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "status",
+        "multi": false,
+        "name": "status",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "error",
+            "value": "STATUS_CODE_ERROR"
+          },
+          {
+            "selected": false,
+            "text": "ok",
+            "value": "STATUS_CODE_OK"
+          },
+          {
+            "selected": false,
+            "text": "unset",
+            "value": "STATUS_CODE_UNSET"
+          }
+        ],
+        "query": "error : STATUS_CODE_ERROR, ok : STATUS_CODE_OK, unset : STATUS_CODE_UNSET",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "trace_id",
+        "name": "trace_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "0",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "4 Trace Detail",
+  "uid": "ceihrtqga0zy8c",
+  "version": 2,
+  "weekStart": ""
+}

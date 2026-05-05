@@ -1,0 +1,93 @@
+# E-commerce Log Definition for VeloDB Demo
+# Generates realistic application logs from e-commerce services
+
+globalPayloadFrequencySeconds: 10
+
+logs:
+  # API Gateway logs - high volume
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "WARN", "ERROR"], [8, 1, 1])'
+    payloadFrequencySeconds: 5
+    payloadCount: 99999999
+    copyCount: 100
+    reportingResourcesCounts:
+      api_gateway: 2
+    attributes:
+      log.message: 'roundRobin(["Request received", "Request completed", "Rate limit check passed", "JWT validated", "Request forwarded to backend", "Response sent to client", "Connection timeout", "Service unavailable", "Bad gateway", "Request rejected"])'
+      http.method: 'roundRobin(["GET", "POST", "PUT", "DELETE"])'
+      http.status_code: 'roundRobin(["200", "201", "400", "401", "500", "503"])'
+      request.id: 'UUIDFromStringCounter("req-")'
+
+  # Order Service logs
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "DEBUG", "WARN", "ERROR"], [6, 2, 1, 1])'
+    payloadFrequencySeconds: 8
+    payloadCount: 99999999
+    copyCount: 50
+    reportingResourcesCounts:
+      order_service: 3
+    attributes:
+      log.message: 'roundRobin(["Order created successfully", "Order validation started", "Order items validated", "Inventory check passed", "Order persisted to database", "Order event published to Kafka", "Order validation failed: insufficient stock", "Order processing error", "Database connection timeout", "Kafka publish failed"])'
+      order.id: 'counter("ORD-")'
+      user.id: 'counter("USR-")'
+
+  # Payment Service logs
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "WARN", "ERROR"], [7, 2, 1])'
+    payloadFrequencySeconds: 12
+    payloadCount: 99999999
+    copyCount: 30
+    reportingResourcesCounts:
+      payment_service: 2
+    attributes:
+      log.message: 'roundRobin(["Payment initiated", "Payment authorized", "Payment captured", "Payment completed", "Refund processed", "Payment declined: insufficient funds", "Payment gateway timeout", "Payment validation error", "Fraud check triggered", "3DS verification required"])'
+      payment.method: 'roundRobin(["credit_card", "paypal", "apple_pay", "bank_transfer"])'
+      payment.amount: 'arithmeticSequence(50, 25, "$")'
+      transaction.id: 'UUIDFromStringCounter("txn-")'
+
+  # Inventory Service logs
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "DEBUG", "WARN", "ERROR"], [5, 3, 1, 1])'
+    payloadFrequencySeconds: 10
+    payloadCount: 99999999
+    copyCount: 40
+    reportingResourcesCounts:
+      inventory_service: 2
+    attributes:
+      log.message: 'roundRobin(["Stock check completed", "Stock reserved", "Stock released", "Stock updated", "Restock triggered", "Low stock alert", "Stock reservation timeout", "Inventory sync started", "Product not found", "Stock mismatch detected"])'
+      product.sku: 'counter("SKU-")'
+      warehouse.id: 'roundRobin(["WH-WEST-1", "WH-EAST-1", "WH-CENTRAL-1"])'
+
+  # User Service logs
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "WARN", "ERROR"], [8, 1, 1])'
+    payloadFrequencySeconds: 15
+    payloadCount: 99999999
+    copyCount: 25
+    reportingResourcesCounts:
+      user_service: 2
+    attributes:
+      log.message: 'roundRobin(["User authenticated", "Session created", "Token refreshed", "Password verified", "User profile updated", "Login attempt failed", "Account locked", "Session expired", "Invalid token", "Rate limit exceeded for user"])'
+      auth.method: 'roundRobin(["password", "oauth", "sso", "mfa"])'
+
+  # Notification Service logs
+  - severityOrderFunction: 'severityDistributionCount(["INFO", "WARN", "ERROR"], [7, 2, 1])'
+    payloadFrequencySeconds: 20
+    payloadCount: 99999999
+    copyCount: 15
+    reportingResourcesCounts:
+      notification_service: 1
+    attributes:
+      log.message: 'roundRobin(["Email sent successfully", "SMS delivered", "Push notification sent", "Notification queued", "Template rendered", "Email delivery failed", "SMS gateway error", "Invalid recipient", "Template not found", "Notification rate limit reached"])'
+      notification.type: 'roundRobin(["email", "sms", "push"])'
+      notification.template: 'roundRobin(["order_confirmation", "shipping_update", "payment_receipt", "welcome", "password_reset"])'
+
+  # Kubernetes events (system-level)
+  - severityOrderFunction: 'severityDistributionCount(["Normal", "Warning"], [4, 1])'
+    payloadFrequencySeconds: 30
+    payloadCount: 99999999
+    copyCount: 10
+    reportingResourcesCounts:
+      order_service: 3
+      payment_service: 2
+      inventory_service: 2
+    attributes:
+      event.name: 'roundRobin(["pod_event"])'
+      event.domain: 'roundRobin(["k8s"])'
+      event.reason: 'roundRobin(["Scheduled", "Pulled", "Created", "Started", "Unhealthy", "BackOff"])'
+      event.message: 'roundRobin(["Successfully assigned pod to node", "Container image pulled", "Created container", "Started container", "Liveness probe failed", "Back-off restarting failed container"])'

@@ -1,0 +1,27 @@
+# Grafana datasource — local Apache Doris 4.1.0
+# UID "doris" is required by the OTEL dashboards. Do not change it.
+
+apiVersion: 1
+
+deleteDatasources:
+  - name: VeloDB
+    orgId: 1
+  - name: VeloDB-OTEL
+    orgId: 1
+
+datasources:
+  - name: Doris
+    uid: doris
+    type: mysql
+    url: doris-fe:9030
+    database: demo_observability
+    user: root
+    secureJsonData:
+      password: $DORIS_PASSWORD
+    jsonData:
+      maxOpenConns: 100
+      maxIdleConns: 10
+      connMaxLifetime: 14400
+      timezone: UTC
+    isDefault: true
+    editable: true

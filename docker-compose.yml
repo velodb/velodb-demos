@@ -1,0 +1,389 @@
+# =============================================================================
+# VeloDB Demo — Self-contained distribution (Apache Doris 4.1.0 open source)
+# =============================================================================
+#
+# Quick start:
+#   cp .env.example .env
+#   docker compose up -d
+#
+# Profiles (opt-in extras):
+#   docker compose --profile observability up -d   # Grafana + OTEL collector + telemetry generator
+#   docker compose --profile rag up -d             # GenAI / RAG API
+#   docker compose --profile all up -d             # everything
+#
+# Tested on:
+#   - OrbStack (macOS, arm64 + amd64)
+#   - Docker Desktop (Linux/Mac)
+#
+# Resource budget (core profile): ~6 GB RAM, 4 vCPU
+# Add observability profile: +1.5 GB RAM
+# =============================================================================
+
+x-doris-common: &doris-common
+  restart: unless-stopped
+  ulimits:
+    memlock: { soft: -1, hard: -1 }
+    nofile:  { soft: 65536, hard: 65536 }
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Sysctl init — Doris BE requires vm.max_map_count >= 2000000.
+  # On OrbStack / Docker Desktop the host sysctl applies to the embedded Linux
+  # VM, so a single privileged container is enough. Runs once and exits.
+  # ---------------------------------------------------------------------------
+  sysctl-init:
+    image: alpine:3.20
+    container_name: velodb-sysctl-init
+    privileged: true
+    command: sh -c "sysctl -w vm.max_map_count=2000000 && sysctl -w fs.file-max=655360"
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Apache Doris 4.1.0 — Frontend (FE)
+  # ---------------------------------------------------------------------------
+  doris-fe:
+    <<: *doris-common
+    image: apache/doris:fe-${DORIS_VERSION:-4.1.0}
+    container_name: velodb-doris-fe
+    hostname: doris-fe
+    depends_on:
+      sysctl-init:
+        condition: service_completed_successfully
+    environment:
+      FE_SERVERS: "fe1:10.20.30.10:9010"
+      FE_ID: "1"
+    networks:
+      default:
+        ipv4_address: 10.20.30.10
+    ports:
+      - "${DORIS_FE_HTTP_PORT:-8030}:8030"
+      - "${DORIS_FE_QUERY_PORT:-9030}:9030"
+    volumes:
+      - doris-fe-meta:/opt/apache-doris/fe/doris-meta
+      - doris-fe-log:/opt/apache-doris/fe/log
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8030/api/health || curl -sf http://localhost:8030/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Apache Doris 4.1.0 — Backend (BE)
+  # NOTE: Requires vm.max_map_count >= 2000000 on the Linux host.
+  #       On OrbStack: orb config set vm.kernel_param vm.max_map_count=2000000
+  # ---------------------------------------------------------------------------
+  doris-be:
+    <<: *doris-common
+    image: apache/doris:be-${DORIS_VERSION:-4.1.0}
+    container_name: velodb-doris-be
+    hostname: doris-be
+    environment:
+      FE_SERVERS: "fe1:10.20.30.10:9010"
+      BE_ADDR: "10.20.30.11:9050"
+    depends_on:
+      sysctl-init:
+        condition: service_completed_successfully
+      doris-fe:
+        condition: service_healthy
+    ports:
+      - "${DORIS_BE_HTTP_PORT:-8040}:8040"
+    networks:
+      default:
+        ipv4_address: 10.20.30.11
+    volumes:
+      - doris-be-storage:/opt/apache-doris/be/storage
+      - doris-be-log:/opt/apache-doris/be/log
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8040/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # One-shot: register BE with FE and apply schema
+  doris-init:
+    image: mysql:8.0
+    container_name: velodb-doris-init
+    depends_on:
+      doris-fe: { condition: service_healthy }
+      doris-be: { condition: service_started }
+    volumes:
+      - ./scripts/doris-bootstrap.sh:/bootstrap.sh:ro
+      - ./doris/init:/sql:ro
+    environment:
+      FE_HOST: doris-fe
+      FE_QUERY_PORT: "9030"
+      FE_HTTP_PORT: "8030"
+      BE_HOST: doris-be
+      BE_HEARTBEAT_PORT: "9050"
+      DORIS_USER: root
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      INIT_DIR: /sql
+    entrypoint: ["sh", "/bootstrap.sh"]
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — OLTP source (orders, products, users)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: velodb-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-demo_db}
+      POSTGRES_USER: ${POSTGRES_USER:-demo_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-demo_password_123}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-3}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/01-init-schema.sql:/docker-entrypoint-initdb.d/01-init-schema.sql:ro
+      - ./postgres/02-ttl-cleanup.sql:/docker-entrypoint-initdb.d/02-ttl-cleanup.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-demo_user} -d ${POSTGRES_DB:-demo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redpanda — Kafka-compatible stream
+  # ---------------------------------------------------------------------------
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    container_name: velodb-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=redpanda:8082
+    ports:
+      - "${REDPANDA_PORT:-9092}:9092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Backend (Go) — analytics API + data generators
+  # ---------------------------------------------------------------------------
+  backend:
+    image: ${BACKEND_IMAGE:-velodb/velodb-demo-backend}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-backend
+    environment:
+      VELODB_HOST: doris-fe
+      VELODB_PORT: "9030"
+      VELODB_USER: root
+      VELODB_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      VELODB_DB: us_demo
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-demo_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-demo_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-demo_db}
+      SERVER_PORT: "8081"
+      SERVER_READ_TIMEOUT: 30s
+      SERVER_WRITE_TIMEOUT: 30s
+      GENERATOR_ENABLED: ${GENERATOR_ENABLED:-true}
+      GENERATOR_PARTNER_ID: ${GENERATOR_PARTNER_ID:-44}
+      GENERATOR_ORDERS_RATE: ${GENERATOR_ORDERS_RATE:-10}
+      GENERATOR_CLICKSTREAM_RATE: ${GENERATOR_CLICKSTREAM_RATE:-10}
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TOPIC: clickstream-events
+    ports:
+      - "${BACKEND_PORT:-8081}:8081"
+    depends_on:
+      postgres:    { condition: service_healthy }
+      redpanda:    { condition: service_healthy }
+      doris-init:  { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Frontend (React + nginx)
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: ${FRONTEND_IMAGE:-velodb/velodb-demo-frontend}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    environment:
+      BACKEND_URL: http://backend:8081
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Observability profile — Grafana + OTEL collector + telemetry generator
+  # ===========================================================================
+  grafana:
+    image: ${GRAFANA_IMAGE:-velodb/velodb-demo-grafana}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-grafana
+    profiles: [observability, all]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: doris-app
+      GF_INSTALL_PLUGINS: ""
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+    ports:
+      - "${GRAFANA_PORT:-33000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      doris-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.150.1
+    container_name: velodb-otel-collector
+    profiles: [observability, all]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      OTEL_TIMEZONE: ${OTEL_TIMEZONE:-UTC}
+    volumes:
+      - ./otel/otelcol-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "${OTLP_GRPC_PORT:-4317}:4317"
+      - "${OTLP_HTTP_PORT:-4318}:4318"
+      - "13133:13133"
+    depends_on:
+      doris-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  telemetry-generator:
+    image: ${TELEMETRY_GEN_IMAGE:-velodb/velodb-demo-telemetry-generator}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-telemetry-generator
+    profiles: [observability, all]
+    depends_on:
+      otel-collector: { condition: service_started }
+    volumes:
+      - ./otel/definitions:/definitions:ro
+    command: >
+      -r /definitions/resource-definition.yaml
+      -s /definitions/trace-definition.yaml
+      -l /definitions/log-definition.yaml
+      -m /definitions/metric-definition.yaml
+      -t /definitions/target-rest.yaml
+    restart: unless-stopped
+
+  # Wait for the OTEL collector to auto-create otel_* tables, then backfill
+  # 7 days of historical UTC partitions so PT/CET/etc.-formatted writes
+  # don't get dropped with "no partition for this tuple".
+  # Reuses the rag-api image (has python3 + mysql-connector). One-shot.
+  otel-partition-init:
+    image: ${RAG_IMAGE:-velodb/velodb-demo-rag-api}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-otel-partition-init
+    profiles: [observability, all]
+    depends_on:
+      otel-collector: { condition: service_started }
+      telemetry-generator: { condition: service_started }
+    environment:
+      DORIS_HOST: doris-fe
+      DORIS_PORT: "9030"
+      DORIS_USER: root
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      DAYS_BACK: "7"
+    volumes:
+      - ./scripts/otel-partition-init.py:/scripts/otel-partition-init.py:ro
+    entrypoint: ["python3", "/scripts/otel-partition-init.py"]
+    restart: "no"
+
+  # ===========================================================================
+  # RAG / GenAI profile (optional)
+  # ===========================================================================
+  # One-shot: create rag_db schema, then stream-load the bundled 15-doc corpus
+  # (82 pre-embedded chunks) so the API has data on first request.
+  rag-init:
+    image: ${RAG_IMAGE:-velodb/velodb-demo-rag-api}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-rag-init
+    profiles: [rag, all]
+    depends_on:
+      doris-init: { condition: service_completed_successfully }
+    environment:
+      DORIS_HOST: doris-fe
+      DORIS_PORT: "9030"
+      DORIS_HTTP_PORT: "8030"
+      DORIS_USER: root
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      INIT_DIR: /rag/init
+      DATA_PATH: /rag/data/chunks.json
+    volumes:
+      - ./rag/init:/rag/init:ro
+      - ./rag/data:/rag/data:ro
+      - ./scripts/rag-bootstrap.py:/scripts/rag-bootstrap.py:ro
+      - ./scripts/rag-load.py:/scripts/rag-load.py:ro
+    entrypoint: ["python3", "/scripts/rag-bootstrap.py"]
+    restart: "no"
+
+  rag-api:
+    image: ${RAG_IMAGE:-velodb/velodb-demo-rag-api}:${IMAGE_TAG:-4.1.0}
+    container_name: velodb-rag-api
+    profiles: [rag, all]
+    environment:
+      DORIS_HOST: doris-fe
+      DORIS_PORT: "9030"
+      DORIS_USER: root
+      DORIS_PASSWORD: ${DORIS_PASSWORD:-VeloDB@demo123}
+      DORIS_DATABASE: rag_db
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_BASE_URL: https://openrouter.ai/api/v1
+      OPENAI_CHAT_MODEL: ${RAG_CHAT_MODEL:-amazon/nova-micro-v1}
+      OPENAI_VISION_MODEL: ${RAG_VISION_MODEL:-amazon/nova-lite-v1}
+      EMBEDDING_PROVIDER: openrouter
+      EMBEDDING_MODEL: baai/bge-m3
+      EMBEDDING_DIM: "1024"
+      ASSET_STORAGE_BACKEND: ${ASSET_STORAGE_BACKEND:-local}
+      IMAGE_DATA_DIR: /data/images
+    volumes:
+      - ./rag/data/images:/data/images:ro
+    ports:
+      - "${RAG_PORT:-8000}:8000"
+    depends_on:
+      rag-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+volumes:
+  doris-fe-meta:
+  doris-fe-log:
+  doris-be-storage:
+  doris-be-log:
+  postgres-data:
+  redpanda-data:
+  grafana-data:
+
+networks:
+  default:
+    name: velodb-demo
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.20.30.0/24
+          gateway: 10.20.30.1

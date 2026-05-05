@@ -1,0 +1,18 @@
+# Ignore build artifacts and deps - Dockerfile does fresh npm ci
+node_modules/
+dist/
+.git/
+
+# Dev files
+*.log
+.env.local
+.env.*.local
+claude-progress.txt
+
+# IDE
+.vscode/
+.idea/
+
+# Test/coverage
+coverage/
+.nyc_output/

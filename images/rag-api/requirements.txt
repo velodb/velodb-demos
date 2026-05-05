@@ -1,0 +1,17 @@
+# Minimal dependencies for the velodb-demo-rag-api image.
+# No local embedding model (OpenRouter HTTP) and no Lance/pyarrow asset
+# storage — keeps the image small (<300 MB target on linux/arm64).
+
+python-dotenv>=1.0.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+httpx>=0.24.0
+python-multipart>=0.0.6
+mysql-connector-python>=8.0.0
+openai>=1.0.0
+tiktoken>=0.5.0
+Pillow>=10.0.0
+anyio>=4.0.0
+tenacity>=9.1.2

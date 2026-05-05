@@ -1,0 +1,206 @@
+# E-commerce Metrics Definition for VeloDB Demo
+# Generates realistic application and infrastructure metrics
+
+payloadFrequencySeconds: 30
+payloadCount: 99999999
+
+metrics:
+  # HTTP Request metrics
+  - name: http.server.request.duration
+    unit: "ms"
+    otelType: histogram
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequenceSummary(50, 10, "", 5)'
+    isDouble: true
+    bounds: [10, 50, 100, 250, 500, 1000, 2500, 5000]
+    reportingResources: [api_gateway, order_service, payment_service, inventory_service, user_service]
+
+  - name: http.server.request.count
+    unit: "{requests}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(100, 50, "")'
+    isMonotonic: true
+    reportingResources: [api_gateway, order_service, payment_service, inventory_service, user_service]
+
+  - name: http.server.active_requests
+    unit: "{requests}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(5, 2, "")'
+    reportingResources: [api_gateway, order_service]
+
+  # Business metrics
+  - name: orders.created
+    unit: "{orders}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(10, 5, "")'
+    isMonotonic: true
+    reportingResources: [order_service]
+
+  - name: orders.failed
+    unit: "{orders}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(1, 1, "")'
+    isMonotonic: true
+    reportingResources: [order_service]
+
+  - name: orders.total_value
+    unit: "USD"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(1000, 500, "")'
+    isDouble: true
+    isMonotonic: true
+    reportingResources: [order_service]
+
+  - name: payments.processed
+    unit: "{payments}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(8, 4, "")'
+    isMonotonic: true
+    reportingResources: [payment_service]
+
+  - name: payments.failed
+    unit: "{payments}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(1, 0, "")'
+    isMonotonic: true
+    reportingResources: [payment_service]
+
+  - name: payments.amount
+    unit: "USD"
+    otelType: summary
+    valueFunction: 'arithmeticSequenceSummary(150, 50, "", 5)'
+    isDouble: true
+    quantiles: [0, 0.5, 0.9, 0.99, 1]
+    reportingResources: [payment_service]
+
+  # Inventory metrics
+  - name: inventory.stock_level
+    unit: "{items}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(500, -10, "")'
+    reportingResources: [inventory_service]
+
+  - name: inventory.low_stock_alerts
+    unit: "{alerts}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(0, 1, "")'
+    isMonotonic: true
+    reportingResources: [inventory_service]
+
+  - name: inventory.reservations
+    unit: "{reservations}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(20, 5, "")'
+    reportingResources: [inventory_service]
+
+  # User/Auth metrics
+  - name: auth.login_attempts
+    unit: "{attempts}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(50, 20, "")'
+    isMonotonic: true
+    reportingResources: [user_service]
+
+  - name: auth.login_failures
+    unit: "{failures}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(2, 1, "")'
+    isMonotonic: true
+    reportingResources: [user_service]
+
+  - name: auth.active_sessions
+    unit: "{sessions}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(200, 20, "")'
+    reportingResources: [user_service]
+
+  # Database metrics
+  - name: db.connections.active
+    unit: "{connections}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(10, 2, "")'
+    reportingResources: [postgres_db]
+
+  - name: db.connections.idle
+    unit: "{connections}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(40, -2, "")'
+    reportingResources: [postgres_db]
+
+  - name: db.query.duration
+    unit: "ms"
+    otelType: histogram
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequenceSummary(5, 2, "", 3)'
+    isDouble: true
+    bounds: [1, 5, 10, 25, 50, 100, 250]
+    reportingResources: [postgres_db]
+
+  # Cache metrics
+  - name: cache.hits
+    unit: "{hits}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(500, 100, "")'
+    isMonotonic: true
+    reportingResources: [redis_cache]
+
+  - name: cache.misses
+    unit: "{misses}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(50, 10, "")'
+    isMonotonic: true
+    reportingResources: [redis_cache]
+
+  - name: cache.memory.used
+    unit: "By"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(100000000, 5000000, "")'
+    reportingResources: [redis_cache]
+
+  # Kafka metrics
+  - name: messaging.publish.count
+    unit: "{messages}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(100, 30, "")'
+    isMonotonic: true
+    reportingResources: [kafka_broker]
+
+  - name: messaging.consumer.lag
+    unit: "{messages}"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(10, 5, "")'
+    reportingResources: [kafka_broker]
+
+  # Container/Pod metrics
+  - name: container.cpu.usage
+    unit: "%"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(15, 5, "")'
+    isDouble: true
+    reportingResources: [api_gateway, order_service, payment_service, inventory_service, user_service, notification_service]
+
+  - name: container.memory.usage
+    unit: "By"
+    otelType: gauge
+    valueFunction: 'arithmeticSequence(200000000, 10000000, "")'
+    reportingResources: [api_gateway, order_service, payment_service, inventory_service, user_service, notification_service]
+
+  - name: container.restarts
+    unit: "{restarts}"
+    otelType: sum
+    aggregationTemporality: delta
+    valueFunction: 'arithmeticSequence(0, 0, "")'
+    isMonotonic: true
+    reportingResources: [order_service, payment_service]

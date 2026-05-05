@@ -1,0 +1,70 @@
+# OpenTelemetry Collector — exports to local Apache Doris 4.1.0
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+extensions:
+  health_check: { endpoint: 0.0.0.0:13133 }
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  batch:
+    send_batch_size: 5000
+    timeout: 5s
+    send_batch_max_size: 6000
+  resource:
+    attributes:
+      - { key: deployment.environment, value: demo,         action: insert }
+      - { key: service.namespace,      value: velodb-demo,  action: insert }
+
+exporters:
+  doris:
+    endpoint: http://doris-fe:8030
+    mysql_endpoint: doris-fe:9030
+    database: demo_observability
+    username: root
+    password: ${env:DORIS_PASSWORD}
+    table:
+      logs: otel_logs
+      traces: otel_traces
+      metrics: otel_metrics
+    create_schema: true
+    # The Doris exporter writes datetimes as literal strings in this timezone.
+    # The Grafana doris-app's time picker uses *browser-local* literals in its
+    # WHERE clauses, so we match the local browser zone here. Override per
+    # deployment via OTEL_TIMEZONE in `.env` (e.g. UTC, Asia/Shanghai).
+    timezone: ${env:OTEL_TIMEZONE}
+    history_days: 7
+    replication_num: 1
+    timeout: 60s
+    sending_queue: { enabled: true, num_consumers: 5, queue_size: 500 }
+    retry_on_failure: { enabled: true, initial_interval: 5s, max_interval: 30s, max_elapsed_time: 300s }
+    headers: { max_filter_ratio: "1" }
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+connectors:
+  spanmetrics: {}
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [doris, spanmetrics, debug]
+    metrics:
+      receivers: [otlp, spanmetrics]
+      processors: [memory_limiter, resource, batch]
+      exporters: [doris, debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [doris, debug]
