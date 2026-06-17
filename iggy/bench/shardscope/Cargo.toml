@@ -1,0 +1,14 @@
+[package]
+name = "shardscope"
+version = "0.1.0"
+edition = "2021"
+description = "TUI that visualizes Iggy's thread-per-core shards and io_uring rings from /proc"
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+clap = { version = "4", features = ["derive"] }
+
+[[bin]]
+name = "shardscope"
+path = "src/main.rs"
