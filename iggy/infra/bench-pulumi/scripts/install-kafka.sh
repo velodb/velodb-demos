@@ -12,7 +12,7 @@ LOG_DIR="${KAFKA_LOG_DIR:-/mnt/nvme/kafka-logs}"
 KAFKA_ROLE="${KAFKA_ROLE:-broker}"
 
 # Kafka 4.0 needs Java >= 17.
-sudo dnf -y install java-17-amazon-corretto-headless
+sudo apt-get update -y && sudo apt-get install -y openjdk-17-jdk-headless
 
 TGZ="kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz"
 if [ ! -x "$KAFKA_HOME/bin/kafka-server-start.sh" ]; then
@@ -33,7 +33,7 @@ PRIVATE_IP=$(hostname -I | awk '{print $1}')
 sudo mkdir -p "$LOG_DIR" && sudo chown "$USER" "$LOG_DIR"
 
 # Single-node KRaft combined config. Logs on NVMe; advertise the private IP so
-# the producer VM connects. 16 partitions / RF=1 to match the Iggy side.
+# the producer VM connects. 4 partitions / RF=1 to match the Iggy side.
 CFG="$KAFKA_HOME/config/server.properties"
 cat > "$CFG" <<EOF
 process.roles=broker,controller
@@ -45,7 +45,7 @@ controller.listener.names=CONTROLLER
 listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
 inter.broker.listener.name=PLAINTEXT
 log.dirs=${LOG_DIR}
-num.partitions=16
+num.partitions=4
 default.replication.factor=1
 offsets.topic.replication.factor=1
 transaction.state.log.replication.factor=1

@@ -15,8 +15,8 @@ IGGY_BUILD="${IGGY_BUILD:-broker}"
 
 source "$HOME/.cargo/env"
 
-# Iggy build deps: hwloc (CPU-topology-aware core pinning for thread-per-core).
-sudo dnf -y install hwloc-devel
+# Iggy build deps (libhwloc-dev for thread-per-core pinning, libudev-dev for the
+# -ludev link) are installed by common-setup.sh; nothing extra to install here.
 
 if [ ! -d "$IGGY_SRC/.git" ]; then
   git clone "$IGGY_REPO" "$IGGY_SRC"
@@ -65,7 +65,7 @@ if [ "$IGGY_BUILD" = "broker" ] || [ "$IGGY_BUILD" = "all" ]; then
 [iggy]
 address = "127.0.0.1:8090"
 username = "iggy"
-password = "iggy"
+password = "iggybench"
 
 [state]
 path = "/mnt/nvme/connectors_state"
@@ -91,15 +91,19 @@ plugin_config_format = "toml"
 stream = "bench"
 topics = ["clickstream"]
 schema = "json"
+# Throughput config. For the latency run use batch_length = 1000 / poll = "100ms".
 batch_length = 20000
 poll_interval = "500ms"
 consumer_group = "doris_sink"
 
 [plugin_config]
-fe_url = "https://CHANGE-ME.cloud.velodb.io"
+# VeloDB Cloud Stream Load. Point at the BE port :8460 directly; the connector
+# does not follow the FE :8080 -> BE :8460 redirect (whose Location carries inline
+# credentials). Host = cluster load balancer from `velocli cloud warehouse connections`.
+fe_url = "http://CHANGE-ME.elb.us-east-1.amazonaws.com:8460"
 database = "bench"
 table = "events"
-username = "CHANGE-ME"
+username = "admin@CHANGE-ME-cluster"
 password = "CHANGE-ME"
 label_prefix = "iggy"
 batch_size = 20000

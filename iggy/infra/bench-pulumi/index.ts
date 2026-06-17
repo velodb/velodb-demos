@@ -82,14 +82,16 @@ const keyPair = new aws.ec2.KeyPair("bench-key", {
     tags,
 }, opts);
 
-// --- AMI: Amazon Linux 2023 x86_64 (kernel 6.x, so io_uring >= 5.19) --------
+// --- AMI: Ubuntu 24.04 LTS x86_64 (Canonical) -------------------------------
+// The broker upgrades to mainline kernel 7.0.10 post-boot (broker-setup.sh) for
+// Iggy's preferred fresh io_uring path; the producer stays on the stock kernel.
 // Looked up via DescribeImages (the us-demo-sa user lacks ssm:GetParameter for
 // the public AMI alias).
 const amiId = aws.ec2.getAmiOutput({
-    owners: ["amazon"],
+    owners: ["099720109477"], // Canonical
     mostRecent: true,
     filters: [
-        { name: "name", values: ["al2023-ami-2023.*-x86_64"] },
+        { name: "name", values: ["ubuntu/images/hvm-ssd*/ubuntu-noble-24.04-amd64-server-*"] },
         { name: "architecture", values: ["x86_64"] },
         { name: "state", values: ["available"] },
         { name: "virtualization-type", values: ["hvm"] },
@@ -97,7 +99,7 @@ const amiId = aws.ec2.getAmiOutput({
 }, opts).id;
 
 // --- user-data: composed from the versioned scripts in ./scripts ------------
-// Single source of truth — the same files you can scp + re-run on a live VM.
+// Single source of truth: the same files you can scp + re-run on a live VM.
 const scriptsDir = path.join(__dirname, "scripts");
 const readScript = (name: string) => fs.readFileSync(path.join(scriptsDir, name), "utf8");
 const stripShebang = (s: string) => s.replace(/^#![^\n]*\n/, "");
@@ -106,7 +108,10 @@ const commonScript = readScript("common-setup.sh");
 const brokerScript = readScript("broker-setup.sh");
 
 const producerUserData = commonScript;
-// Broker runs common setup, then the NVMe mount (shebang stripped on the append).
+// Broker runs common setup, then mainline-kernel install + OS tuning + NVMe mount
+// (shebang stripped on the append). broker-setup.sh installs kernel 7.0.10 and
+// flags a reboot: reboot the broker once after first boot, then re-run
+// broker-setup.sh (idempotent) so it proceeds on the fresh kernel.
 const brokerUserData = `${commonScript}\n${stripShebang(brokerScript)}`;
 
 // --- Instances -------------------------------------------------------------
@@ -138,8 +143,8 @@ export const producerPublicIp = producer.publicIp;
 export const producerPrivateIp = producer.privateIp;
 export const brokerPublicIp = broker.publicIp;
 export const brokerPrivateIp = broker.privateIp;
-export const sshProducer = pulumi.interpolate`ssh ec2-user@${producer.publicIp}`;
-export const sshBroker = pulumi.interpolate`ssh ec2-user@${broker.publicIp}`;
+export const sshProducer = pulumi.interpolate`ssh ubuntu@${producer.publicIp}`;
+export const sshBroker = pulumi.interpolate`ssh ubuntu@${broker.publicIp}`;
 // Point the producer at the broker over the private network:
-export const brokerIggyEndpoint = pulumi.interpolate`iggy://iggy:iggy@${broker.privateIp}:8090`;
+export const brokerIggyEndpoint = pulumi.interpolate`iggy://iggy:iggybench@${broker.privateIp}:8090`;
 export const brokerKafkaEndpoint = pulumi.interpolate`${broker.privateIp}:9092`;

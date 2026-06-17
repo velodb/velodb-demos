@@ -13,7 +13,7 @@ matches `backend/internal/datagen/service/clickstream_service.go`, and
 
 ## What it is and isn't for
 
-- **Layer 2 (E2E into VeloDB):** this is the right tool — identical JSON on both
+- **Layer 2 (E2E into VeloDB):** this is the right tool: identical JSON on both
   sides, so the Stream Load path is byte-for-byte comparable.
 - **Layer 1 (broker-only):** you *can* use this (`--broker` both ways, no VeloDB),
   and it's more symmetric than `iggy-bench` vs Kafka `*-perf-test` because it's
@@ -38,11 +38,11 @@ Notes:
 ```bash
 # Iggy
 ./target/release/iggy-kafka-bench --broker iggy \
-  --iggy-connection iggy://iggy:iggy@127.0.0.1:8090 \
+  --iggy-connection iggy://iggy:iggybench@127.0.0.1:8090 \
   --stream bench --topic clickstream --partitions 8 \
   --batch 1000 --rate 200000 --duration-secs 60 --warmup-secs 5
 
-# Kafka — same knobs, only the broker changes
+# Kafka: same knobs, only the broker changes
 ./target/release/iggy-kafka-bench --broker kafka \
   --kafka-brokers 127.0.0.1:9092 \
   --topic clickstream --partitions 8 \
@@ -63,7 +63,7 @@ Iggy stream/topic are auto-created.
 ## Status
 
 `cargo check` passes against the local Iggy SDK (`0.10.1-edge.2`) and
-`rdkafka 0.36` — the producer API, `IggyMessage::from_str`, and the rdkafka
+`rdkafka 0.36`: the producer API, `IggyMessage::from_str`, and the rdkafka
 `FutureProducer`/`FutureRecord` path all type-check. The one thing left to
 confirm **against a live server** (not a compile concern):
 

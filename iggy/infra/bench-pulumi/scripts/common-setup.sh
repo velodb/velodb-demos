@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Base setup for both benchmark VMs. Idempotent: safe to re-run.
+# Base setup for both benchmark VMs (Ubuntu 24.04). Idempotent: safe to re-run.
 #   - io_uring-friendly limits (memlock for ring memory, high nofile)
 #   - C + Rust toolchain so iggy-server/connectors build on-box (target-cpu=native)
-# Works whether invoked as root (cloud-init user-data) or as ec2-user (ssh+sudo).
+# Works whether invoked as root (cloud-init user-data) or as ubuntu (ssh+sudo).
 set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
 
 # --- Limits ---------------------------------------------------------------
 sudo tee /etc/security/limits.d/99-iggy.conf >/dev/null <<'EOF'
@@ -20,15 +21,19 @@ DefaultLimitMEMLOCK=infinity
 DefaultLimitNOFILE=1048576
 EOF
 
-# --- Build toolchain (dnf install is a no-op if already present) ----------
-# Includes librdkafka build deps (libcurl/sasl/zlib/zstd/lz4) so the rdkafka
-# crate's vendored librdkafka build (iggy-kafka-bench Kafka client) succeeds.
-sudo dnf -y install gcc gcc-c++ make git cmake openssl-devel pkgconf-pkg-config htop \
-  libcurl-devel cyrus-sasl-devel zlib-devel libzstd-devel lz4-devel
+# --- Build toolchain (apt install is a no-op if already present) ----------
+# librdkafka build deps (libcurl/sasl/zlib/zstd/lz4) for the rdkafka crate
+# (iggy-kafka-bench Kafka client); libhwloc-dev for Iggy's topology-aware core
+# pinning; libudev-dev because iggy-server links -ludev on Linux.
+sudo apt-get update -y
+sudo apt-get install -y \
+  build-essential git cmake pkg-config libssl-dev htop \
+  libcurl4-openssl-dev libsasl2-dev zlib1g-dev libzstd-dev liblz4-dev \
+  libhwloc-dev libudev-dev
 
-# --- Rust for ec2-user (skip if cargo already there) ----------------------
-if ! sudo -u ec2-user test -x /home/ec2-user/.cargo/bin/cargo; then
-  sudo -u ec2-user bash -lc \
+# --- Rust for the ubuntu user (skip if cargo already there) ---------------
+if ! sudo -u ubuntu test -x /home/ubuntu/.cargo/bin/cargo; then
+  sudo -u ubuntu bash -lc \
     "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
 fi
 
