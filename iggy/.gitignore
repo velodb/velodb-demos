@@ -1,0 +1,7 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Pulumi local state / secrets
+.pulumi/
+*.pem

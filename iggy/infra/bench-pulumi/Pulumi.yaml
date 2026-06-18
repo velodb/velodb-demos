@@ -1,0 +1,7 @@
+name: iggy-bench
+runtime: nodejs
+description: Two-VM AWS infra (us-east-1) for the Iggy-vs-Kafka to VeloDB benchmark
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: ""

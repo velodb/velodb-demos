@@ -1,0 +1,31 @@
+[package]
+name = "iggy-kafka-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Symmetric clickstream load generator for benchmarking Iggy vs Kafka into VeloDB"
+
+[dependencies]
+# Iggy Rust SDK — published crates.io release so this builds from a fresh clone.
+# If you want the API to match a specific server build exactly, point this at a
+# local apache/iggy checkout instead, e.g. `iggy = { path = "/path/to/iggy/core/sdk" }`.
+iggy = "0.10"
+
+# Kafka client: librdkafka bindings (the reference high-performance, non-JVM
+# client). `cmake-build` vendors + builds librdkafka so there's no system dep.
+rdkafka = { version = "0.36", features = ["cmake-build", "tokio"] }
+
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+anyhow = "1"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[bin]]
+name = "iggy-kafka-bench"
+path = "src/main.rs"
