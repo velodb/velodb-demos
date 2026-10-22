@@ -1,0 +1,21 @@
+# local config with credentials (the committed template is env.example)
+.env
+.env.*
+*.env
+*.env.*
+!*.example
+# Python: the venv is rebuilt from requirements.txt by ensure-venv.sh
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+# generated data (run-embedding.sh / run-export.sh) and earlier-run leftovers
+products.db*
+vectors.db
+products.csv
+export/
+data/
+# build output
+.ui-server
+*.log
+.DS_Store

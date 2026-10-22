@@ -1,0 +1,26 @@
+# Parquet files, types inferred from the generators: strings, Int64,
+# Decimal128(38, scale), microsecond timestamps, lists, maps and structs.
+# 256 MiB files of 100k-row groups, zstd, two writers.
+#
+#   datagen --config examples/file-parquet.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "parquet"
+rows = 2000000
+
+[parquet]
+row_group_rows = 100000
+compression = "zstd"
+compression_level = 3
+
+[threading]
+sink_threads = 2
+
+[sink]
+dest = "file"
+
+[file]
+directory = "out"
+file_size = "256MiB"
+files_per_folder = 100

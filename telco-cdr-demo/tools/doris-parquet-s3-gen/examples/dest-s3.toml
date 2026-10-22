@@ -1,0 +1,54 @@
+# An S3 destination with a pinned run id and small batch folders.
+#
+#   doris-parquet-s3-gen --config examples/dest-s3.toml \
+#       --schema examples/all_types.sql --spec examples/all_types.spec
+#
+# Objects land at
+#   s3://my-bucket/doris/all_types/nightly-2026-09-12/batch-00001/part-w00-000001.parquet
+#   s3://my-bucket/doris/all_types/nightly-2026-09-12/batch-00001/part-w01-000001.parquet
+#   ...
+#   s3://my-bucket/doris/all_types/nightly-2026-09-12/batch-00002/part-w03-000004.parquet
+#
+# so one Doris load job can point at a single batch folder, and a failed job
+# is retried by folder rather than by re-running the whole generation.
+
+[dest]
+type = "s3"
+
+[s3]
+bucket = "my-bucket"
+prefix = "doris/all_types/"
+region = "ap-southeast-1"
+
+# Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, an instance
+# profile, or [s3.credentials]; see dest.toml at the repository root.
+
+[layout]
+# Pinned, so the folder name is known before the run starts and a scheduler
+# can hand it to the load job. Leave it out to get a timestamp instead, which
+# guarantees a rerun never lands on the previous run's files.
+run_id = "nightly-2026-09-12"
+
+# 20 files x 1GiB = about 20GiB per folder, a comfortable single load.
+# Lower it for more, smaller load jobs.
+file_size = "1GiB"
+files_per_folder = 20
+
+[run]
+# Everything about how the run executes lives here, so the command line only
+# names the inputs. --rows, --target-size and --time override the limits for
+# one invocation without editing the file.
+threads = 0              # CPU count
+upload_threads = 8
+queue_depth = 100
+batch_rows = 32768
+target_size = "10GiB"    # or rows = ...; a time = "2h" cap can sit on top
+
+[upload]
+part_size = "10MiB"
+max_concurrent_parts = 8
+
+[parquet]
+compression = "zstd"
+compression_level = 3
+row_group_rows = 200000

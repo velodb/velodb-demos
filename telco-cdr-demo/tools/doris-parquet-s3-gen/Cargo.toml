@@ -1,0 +1,25 @@
+[package]
+name = "doris-parquet-s3-gen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+datagen = { path = "../datagen" }
+anyhow = "1"
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest"] }
+aws-credential-types = "1"
+aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio", "rustls"] }
+arrow = "59.3.0"
+async-channel = "2.5.0"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+clap = { version = "4", features = ["derive"] }
+futures = "0.3.34"
+object_store = { version = "0.14.1", features = ["aws"] }
+parquet = { version = "59.3.0", features = ["async"] }
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+toml = "0.8"
+uuid = { version = "1", features = ["v4"] }

@@ -1,0 +1,25 @@
+# market.toml — the tick clock and the market-wide macro multiplier. Hot reloaded.
+# Per-stock price behaviour (trend, noise, flip chance, bands, pins) lives in stocks/<SYMBOL>.toml.
+
+[price]
+tick_interval_seconds = 1
+
+# One multiplier applied to every quoted price: quote = stock walk × multiplier.
+# Same knobs as a stock: a bounded random walk inside [min_multiplier, max_multiplier] with a trend
+# step, noise and a flip chance, plus a temporary pin. Bands do not move with it, so a rally pushes
+# every stock toward its band top (the desk sells into it) and a slump toward the bottom (the desk
+# buys). NAV shows the macro cycle.
+#
+# Changing the range never jumps the multiplier: if it is outside the new range it walks to the
+# nearest edge at pin_step_percent per tick. Examples:
+#   flat market    → min_multiplier = 0.99999, max_multiplier = 1.00001
+#   sharp sell-off → min_multiplier = 0.70,    max_multiplier = 0.75   (walks down 0.5 %/tick ≈ 1 min)
+#   hold a level   → pinned_multiplier = 1.03  (walks there, then sits; remove to roam again)
+[macro]
+min_multiplier        = 0.95
+max_multiplier        = 1.05
+trend_step_percent    = 0.02     # per tick, 0..this % in the current direction
+noise_percent         = 0.05     # ± per tick, market-wide wiggle on top of the walk (hits every stock together)
+direction_flip_chance = 0.02     # per tick; hitting min or max always flips
+pin_step_percent      = 0.5      # per tick, when walking to a new range or to the pin
+# pinned_multiplier   = 1.03     # temporary override; higher means down, lower means up

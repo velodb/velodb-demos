@@ -1,0 +1,40 @@
+# Stateful generators: a random walk and an integer sequence. Their values
+# must come out in order, so generation runs on one thread whatever
+# threading.generator_threads says.
+#
+#   datagen --config examples/console-fluctuating.toml --rows 20
+version = 1
+
+[fields.seq]
+type = "sequence"
+start = 1
+step = 1
+
+[fields.temperature]
+type = "fluctuating"
+data_type = "double"
+start = 20.0
+min = -10.0
+max = 40.0
+initial_direction = "random"
+step_min = 0.1
+step_max = 0.5
+noise = 0.2
+flip_chance = 0.05
+precision = 1
+
+[fields.price]
+type = "fluctuating"
+data_type = "decimal"
+start = "100.00"
+min = "50.00"
+max = "150.00"
+step_min = "0.01"
+step_max = "0.50"
+scale = 2
+
+[fields.at]
+type = "datetime_around"
+offset_seconds_min = 0
+offset_seconds_max = 0
+format = "%H:%M:%S%.3f"

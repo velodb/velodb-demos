@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Delete everything in the demo table.
-#   ./truncate_doris_table.sh          # TRUNCATE TABLE (keeps schema and existing partitions, all emptied)
-#   ./truncate_doris_table.sh --drop   # DROP + CREATE instead (also removes stale partitions)
+#   ./truncate_doris_table.sh          # TRUNCATE TABLE (keeps schema and the static partitions, all emptied)
+#   ./truncate_doris_table.sh --drop   # DROP + CREATE instead (static partitions re-anchored on BASE = now)
+# Either way the BASE marker is reset: --drop writes the new BASE, TRUNCATE removes it.
 set -euo pipefail
 cd "$(dirname "$0")"
 . ./env.sh
@@ -23,13 +24,13 @@ fi
 before=$(sql -e "SELECT count(*) FROM ${DATABASE}.${TABLE}" | tail -1)
 echo "${DATABASE}.${TABLE}: ${before} rows before"
 if [ "${1:-}" = "--drop" ]; then
-  ./create_table_doris.sh >/dev/null
-  echo "table dropped and recreated"
+  ./create_table_doris.sh --base "$(date -u +'%Y-%m-%d %H:%M:%S')" >/dev/null
+  echo "table dropped and recreated, base marker $MARKER: BASE $(cat "$MARKER") (UTC)"
 else
   sql -e "TRUNCATE TABLE ${DATABASE}.${TABLE}" >/dev/null
   echo "table truncated"
+  rm -f "$MARKER" && echo "base marker $MARKER removed (the next load uses BASE = now; it must fall on an existing day partition)"
 fi
 after=$(sql -e "SELECT count(*) FROM ${DATABASE}.${TABLE}" | tail -1)
 parts=$(sql -e "SELECT count(*) FROM information_schema.partitions WHERE table_schema='${DATABASE}' AND table_name='${TABLE}'" | tail -1)
 echo "${DATABASE}.${TABLE}: ${after} rows after, ${parts} partitions"
-rm -f "$MARKER" && echo "base marker $MARKER removed (next load starts a new BASE)"

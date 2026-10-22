@@ -1,0 +1,18 @@
+# Avro stream files: [u32 len][schema JSON] then [u32 len][datum] per row.
+# event.avsc decides the shape and the types; spec.toml fills the values.
+#
+#   datagen --config examples/file-avro.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "avro"
+schema = "event.avsc"
+rows = 100000
+
+[sink]
+dest = "file"
+
+[file]
+directory = "out"
+file_size = "10MiB"
+files_per_folder = 100

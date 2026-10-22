@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDR Billing Pipeline</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📶</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 18h2v3H3zm4-4h2v7H7zm4-4h2v11h-2zm4-4h2v15h-2zm4-4h2v19h-2z" fill="currentColor"/></svg></span>
+    <div>
+      <div class="brand-title">CDR Billing Pipeline</div>
+      <div class="brand-sub">dedup · rate · bill, running entirely inside VeloDB</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="chip" id="conn">connecting…</span>
+    <label class="month-pick">Bill month
+      <select id="month"></select>
+    </label>
+    <button class="icon-btn" id="refresh" title="Recount rows">↻</button>
+    <button class="icon-btn" id="theme" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main>
+  <section class="pipeline" aria-label="Pipeline steps">
+    <article class="step" data-step="dedup">
+      <div class="step-head"><span class="step-no">1</span><div><h2>Deduplicate CDRs</h2>
+        <p>Find CDRs delivered more than once and store one correction row per extra copy in
+        <code>cdr_duplicate_correction</code>. Billing counts <code>call_log</code> once and subtracts them, so this
+        writes ~0.5% of the data instead of a full copy.</p></div></div>
+      <dl class="step-stats">
+        <div><dt>CDRs delivered</dt><dd id="st-call_log">–</dd></div>
+        <div><dt>Unique CDRs</dt><dd id="st-dedup">–</dd></div>
+      </dl>
+      <div class="step-actions">
+        <button class="btn primary" data-run="dedup">Run deduplication</button>
+        <details class="inject">
+          <summary>Simulate re-delivered files</summary>
+          <div class="inject-body">
+            <label>Duplicate <input id="dup-rate" type="number" min="0.1" max="20" step="0.1" value="0.5"> % of the month's CDRs back into call_log</label>
+            <button class="btn" data-run="inject">Inject duplicates</button>
+          </div>
+        </details>
+      </div>
+    </article>
+    <div class="flow-arrow" aria-hidden="true">→</div>
+    <article class="step" data-step="bill">
+      <div class="step-head"><span class="step-no">2</span><div><h2>Bill run</h2>
+        <p>Aggregate unique CDRs and data usage per subscriber, apply the rate plan's allowances, overage, roaming and zero-rating, add 9% GST.</p></div></div>
+      <dl class="step-stats">
+        <div><dt>Data records</dt><dd id="st-data_stream_log">–</dd></div>
+        <div><dt>Bills</dt><dd id="st-bills">–</dd></div>
+      </dl>
+      <div class="step-actions">
+        <button class="btn primary" data-run="bill">Run bill run</button>
+      </div>
+    </article>
+    <div class="flow-arrow" aria-hidden="true">→</div>
+    <article class="step" data-step="dash">
+      <div class="step-head"><span class="step-no">3</span><div><h2>Bills &amp; PDF</h2>
+        <p>Search the month's bills, drill into itemised charges and usage, export a bill as PDF. Every view is a live Doris query.</p></div></div>
+      <dl class="step-stats">
+        <div><dt>Revenue</dt><dd id="st-revenue">–</dd></div>
+        <div><dt>ARPU</dt><dd id="st-arpu">–</dd></div>
+      </dl>
+      <div class="step-actions">
+        <button class="btn primary" id="go-dash">Open bills</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="panel job" id="job" hidden>
+    <div class="job-head">
+      <div>
+        <div class="eyebrow" id="job-eyebrow"></div>
+        <h2 id="job-title"></h2>
+      </div>
+      <div class="job-head-right">
+        <span class="status-pill" id="job-status"></span>
+        <button class="btn danger" id="job-cancel" hidden>Cancel</button>
+      </div>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="job-progress"><div class="progress-fill" id="job-bar"></div></div>
+    <div class="job-meta" id="job-meta"></div>
+    <div class="job-summary" id="job-summary" hidden></div>
+    <div class="tasks" id="job-tasks"></div>
+    <details class="console" open>
+      <summary>Statements sent to Doris <span class="muted" id="log-count"></span></summary>
+      <ol id="job-log"></ol>
+    </details>
+  </section>
+
+  <section class="panel" id="dash">
+    <div class="panel-head">
+      <div><div class="eyebrow">Step 3</div><h2>Bills for <span id="dash-month">–</span></h2></div>
+      <span class="muted small" id="dash-ms"></span>
+    </div>
+    <div class="empty" id="dash-empty" hidden>No bills for this month yet. Run step 1 and step 2.</div>
+    <div id="dash-body">
+      <div class="kpis">
+        <div class="kpi hero"><div class="kpi-label">Billed revenue incl. GST</div><div class="kpi-value" id="k-revenue">–</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
+        <div class="kpi"><div class="kpi-label">Bills</div><div class="kpi-value" id="k-bills">–</div><div class="kpi-sub" id="k-bills-sub"></div></div>
+        <div class="kpi"><div class="kpi-label">ARPU</div><div class="kpi-value" id="k-arpu">–</div><div class="kpi-sub">average bill</div></div>
+        <div class="kpi"><div class="kpi-label">Allowance overage</div><div class="kpi-value" id="k-overage">–</div><div class="kpi-sub">voice, SMS, data beyond plan</div></div>
+        <div class="kpi"><div class="kpi-label">Roaming</div><div class="kpi-value" id="k-roaming">–</div><div class="kpi-sub" id="k-roaming-sub"></div></div>
+      </div>
+      <div class="charts">
+        <figure class="chart-card">
+          <figcaption><h3>Revenue by rate plan</h3><p>excluding GST, by charge type</p></figcaption>
+          <div class="legend" id="plan-legend"></div>
+          <div id="plan-chart"></div>
+          <details class="table-view"><summary>Table view</summary><div id="plan-table"></div></details>
+        </figure>
+        <figure class="chart-card">
+          <figcaption><h3>Bill amount distribution</h3><p>number of bills per $10 band, incl. GST</p></figcaption>
+          <div id="hist-chart"></div>
+        </figure>
+      </div>
+
+      <div class="search">
+        <h3>Find a bill</h3>
+        <form id="search-form" class="filters">
+          <input id="f-q" type="search" placeholder="Mobile number, e.g. 8000 0123" inputmode="numeric">
+          <select id="f-plan"><option value="">All plans</option></select>
+          <select id="f-type"><option value="">Prepaid + postpaid</option><option>PREPAID</option><option>POSTPAID</option></select>
+          <label class="check"><input id="f-roaming" type="checkbox"> Roamed</label>
+          <input id="f-min" type="number" min="0" step="10" placeholder="Min total $">
+          <select id="f-sort">
+            <option value="total_desc">Highest total</option>
+            <option value="usage_desc">Highest usage charges</option>
+            <option value="roaming_desc">Highest roaming</option>
+            <option value="data_desc">Most data</option>
+            <option value="total_asc">Lowest total</option>
+            <option value="msisdn">Number</option>
+          </select>
+          <button class="btn primary" type="submit">Search</button>
+        </form>
+        <div class="table-wrap">
+          <table class="grid">
+            <thead><tr><th>Bill no.</th><th>Number</th><th>Plan</th><th class="num">Voice min</th><th class="num">SMS</th><th class="num">Data MB</th><th class="num">Plan fee</th><th class="num">Usage</th><th class="num">Total</th><th></th></tr></thead>
+            <tbody id="bills"></tbody>
+          </table>
+        </div>
+        <div class="pager"><span class="muted small" id="bills-info"></span><div><button class="btn" id="prev">‹ Prev</button> <button class="btn" id="next">Next ›</button></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><div class="eyebrow">History</div><h2>Pipeline runs</h2></div><span class="muted small">stored in Doris table <code>pipeline_run</code></span></div>
+    <div class="table-wrap"><table class="grid"><thead><tr><th>Run</th><th>Month</th><th>Status</th><th>Started</th><th class="num">Duration</th><th class="num">Tasks</th><th>Result</th></tr></thead><tbody id="runs"></tbody></table></div>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" hidden aria-label="Bill detail">
+  <div class="drawer-inner">
+    <div class="drawer-head">
+      <div><div class="eyebrow" id="d-eyebrow"></div><h2 id="d-title"></h2><div class="muted small" id="d-sub"></div></div>
+      <div class="drawer-actions"><a class="btn primary" id="d-pdf" href="#">Download PDF</a><button class="icon-btn" id="d-close" title="Close">✕</button></div>
+    </div>
+    <div id="d-body"></div>
+  </div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+<div class="tooltip" id="tip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# META — Meta Platforms Inc. (Communication). Hot reloaded: save this file and the change applies within a second.
+symbol      = "META"
+name        = "Meta Platforms Inc."
+sector      = "Communication"
+start_price = 464.45      # used only when Doris has no price for this symbol yet
+weight      = 14.0      # relative chance of being traded; also the seed allocation
+
+# Price engine for this stock (delete a line to use the default in the comment).
+trend_step_percent    = 0.1104   # per tick, 0..this % in the trend direction (default 0.01)
+noise_percent         = 0.3312   # ± per tick, independent wiggle (default 0.3)
+direction_flip_chance = 0.0001323   # per tick; the band edge always flips (default 0.02)
+
+# Temporary override: the quote walks to pinned_price at pin_step_percent per tick and wiggles there.
+# Above the pin it falls, below it rises; the [real] band is ignored while pinned. Remove to resume.
+# pinned_price     = 603.79
+# pin_step_percent = 0.5   # also the speed a price walks back into a narrowed band
+
+# Real band: what the market does, the price bounces inside it. By default it is derived at start-up
+# as anchor ± band_percent, where anchor is the latest price in Doris (else start_price).
+band_percent = 0.5
+
+# [real]                   # explicit band instead of band_percent
+# min_price = 232.23
+# max_price = 696.68
+
+# [perceived]              # what the trading app believes. Omitted = same as [real].
+# min_price = 255.45         # Shift it up and the app buys near the real top;
+# max_price = 766.35         # shift it down and it sells too early.

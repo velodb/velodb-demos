@@ -1,0 +1,6 @@
+.env
+.env.*
+doris-loader
+nohup.out
+*.out
+.claude/settings.local.json

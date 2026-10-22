@@ -1,0 +1,19 @@
+# Protobuf stream files: [u32 len][.proto text] then [u32 len][message] per row.
+# event.proto defines two messages, so the one to encode is named.
+#
+#   datagen --config examples/file-protobuf.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "protobuf"
+schema = "event.proto"
+proto_message = "Event"
+rows = 100000
+
+[sink]
+dest = "file"
+
+[file]
+directory = "out"
+file_size = "10MiB"
+files_per_folder = 100

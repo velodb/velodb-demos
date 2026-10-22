@@ -1,0 +1,12 @@
+# local config with credentials: .env, s3.env, ... (the committed templates are env.example / s3.env.example)
+.env
+.env.*
+*.env
+*.env.*
+!*.example
+# earlier 30-day loaders (superseded by run-load.sh)
+old/
+# build / run output
+billing-app/telco-billing
+tools/*/target/
+*.log

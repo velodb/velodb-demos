@@ -213,7 +213,7 @@ func (s *server) handleHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	listen := flag.String("listen", ":8090", "listen address")
+	listen := flag.String("listen", ":9727", "listen address")
 	envPath := flag.String("env", "../.env", "env file with VELODB_* settings (see env.example); VELODB_* environment variables override it")
 	stationsPath := flag.String("stations", "../mrt_stations.csv", "MRT station list")
 	devStatic := flag.String("dev-static", "", "serve static files from this directory instead of the embedded copy (live editing)")

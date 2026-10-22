@@ -1,0 +1,21 @@
+# Parquet with the types taken from event.avsc instead of inferred: int32
+# for age, decimal(10, 2) for amount, and non-nullable columns where the
+# schema has no null branch.
+#
+#   datagen --config examples/file-parquet-avsc.toml --rows 100000
+
+[generation]
+spec = "spec.toml"
+schema_type = "parquet"
+schema = "event.avsc"
+rows = 100000
+
+[parquet]
+row_group_rows = 50000
+compression = "snappy"
+
+[sink]
+dest = "file"
+
+[file]
+directory = "out"

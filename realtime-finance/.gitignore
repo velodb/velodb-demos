@@ -1,0 +1,10 @@
+# local config with credentials (the committed template is env.example)
+.env
+.env.*
+*.env
+*.env.*
+!*.example
+# build / run output
+finsim
+finsim-linux-*
+*.log

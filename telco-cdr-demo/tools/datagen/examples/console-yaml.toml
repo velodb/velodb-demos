@@ -1,0 +1,11 @@
+# The older YAML list layout, chosen by the .yaml extension.
+#
+#   datagen --config examples/console-yaml.toml --rows 5
+
+[generation]
+spec = "basic.yaml"
+schema_type = "csv"
+rows = 5
+
+[sink]
+dest = "console"

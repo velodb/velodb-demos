@@ -1,0 +1,22 @@
+# Protobuf to Kafka in the Confluent wire format: 0x00, the schema id, the
+# message-index path (a single 0x00 for the first message in the file),
+# then the encoded Event.
+#
+#   datagen --config examples/kafka-protobuf.toml --rows 100000
+
+[generation]
+spec = "spec.toml"
+schema_type = "protobuf"
+schema = "event.proto"
+proto_message = "Event"
+
+[sink]
+dest = "kafka"
+
+[kafka]
+brokers = "localhost:9092"
+topic = "events"
+key_field = "id"
+
+[kafka.schema_registry]
+url = "http://localhost:8081"
