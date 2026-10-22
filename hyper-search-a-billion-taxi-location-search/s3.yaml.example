@@ -1,0 +1,9 @@
+# S3 settings used by load_into_doris.sh, upload.sh, taxi-gen sql.
+# Copy to s3.yaml and fill in. s3.yaml is git-ignored.
+Endpoint: https://s3.ap-southeast-1.amazonaws.com
+Region: ap-southeast-1
+access_key: <access-key-id>
+secret_key: <secret-access-key>
+Bucket: <bucket>
+Prefix: hyper-search
+Alias: <rs3-alias>
