@@ -1,0 +1,15 @@
+data/
+data-*/
+generator/target/
+*.tmp
+.env
+.env.*
+doris.env
+create_table.sql
+venv/
+start_broker_load.sql
+load_base*.txt
+webapp/taxi-search-web
+s3.yaml
+s3.yaml.*.bak
+feeder/taxi-feeder

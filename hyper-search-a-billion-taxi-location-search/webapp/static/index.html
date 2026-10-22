@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxi Hyper-Search · 1B rows in Doris</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <header class="brand">
+      <div class="brand-title">Taxi Hyper-Search</div>
+      <div class="brand-sub"><span id="meta-rows">…</span> rows · Apache Doris · <span id="meta-partitions">…</span> partitions</div>
+    </header>
+
+    <section class="card">
+      <div class="card-title">Where</div>
+      <div class="row">
+        <input id="station-filter" type="search" placeholder="Filter MRT stations…" autocomplete="off">
+      </div>
+      <div class="row">
+        <select id="station" size="1"></select>
+      </div>
+      <div class="hint">…or click anywhere on the map / drag the pin.</div>
+      <div class="row slider-row">
+        <label>Radius <b id="radius-label">500 m</b></label>
+        <input id="radius" type="range" min="100" max="3000" step="50" value="500">
+      </div>
+      <div class="row slider-row">
+        <label>Look-back <b id="lookback-label">120 s</b></label>
+        <input id="lookback" type="range" min="30" max="600" step="30" value="120">
+      </div>
+    </section>
+
+    <section class="card stats">
+      <div class="card-title">Doris</div>
+      <div class="big">
+        <div class="big-num" id="stat-ms">–</div>
+        <div class="big-unit">ms query time</div>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="stat-v" id="stat-partitions">–</div><div class="stat-k">partitions scanned</div></div>
+        <div class="stat"><div class="stat-v" id="stat-tablets">–</div><div class="stat-k">tablets scanned</div></div>
+        <div class="stat"><div class="stat-v" id="stat-cells">–</div><div class="stat-k">geohash6 cells</div></div>
+        <div class="stat"><div class="stat-v" id="stat-taxis">–</div><div class="stat-k">taxis found</div></div>
+      </div>
+      <div class="bars">
+        <div class="bar"><span class="bar-label">partitions</span><div class="bar-track"><div class="bar-fill" id="bar-partitions"></div></div><span class="bar-pct" id="bar-partitions-pct"></span></div>
+        <div class="bar"><span class="bar-label">tablets</span><div class="bar-track"><div class="bar-fill" id="bar-tablets"></div></div><span class="bar-pct" id="bar-tablets-pct"></span></div>
+      </div>
+      <details class="sql"><summary>SQL</summary><pre id="sql"></pre></details>
+    </section>
+
+    <section class="card">
+      <div class="card-title">All-time activity here <span class="muted">· every ping in 490 days</span></div>
+      <div class="hint">Same circle, no time filter: all <span id="hist-partitions-total">494</span> partitions. This is where bucket pruning + the inverted index pay off.</div>
+      <div class="row compare-row">
+        <button id="hist-pruned" class="btn ghost">Run with geohash6 cells</button>
+        <button id="hist-full" class="btn ghost" title="Drop the geohash6 predicate: full 1B-row scan">Run as full scan</button>
+      </div>
+      <div class="hist-grid">
+        <div class="hist-col" id="hist-col-pruned"><div class="hist-head">cells</div><div class="hist-ms">–</div><div class="hist-sub">–</div></div>
+        <div class="hist-col" id="hist-col-nocell"><div class="hist-head">full scan</div><div class="hist-ms">–</div><div class="hist-sub">–</div></div>
+      </div>
+      <div class="hint" id="hist-summary"></div>
+    </section>
+
+    <section class="card list-card">
+      <div class="card-title">Taxis <span class="muted" id="list-title"></span></div>
+      <ul id="list"></ul>
+    </section>
+  </aside>
+
+  <main>
+    <div id="map"></div>
+    <div id="timebar">
+      <div class="time-top">
+        <div class="time-display">
+          <span class="time-label">as of</span>
+          <span id="time-value">–</span>
+          <span class="time-tz">UTC</span>
+          <span id="time-rel" class="time-rel"></span>
+        </div>
+        <div class="time-controls">
+          <select id="window" title="Slider span">
+            <option value="3600000">1 hour</option>
+            <option value="21600000">6 hours</option>
+            <option value="86400000" selected>24 hours</option>
+            <option value="604800000">7 days</option>
+            <option value="2592000000">30 days</option>
+            <option value="all">everything</option>
+          </select>
+          <button class="btn icon" id="step-back" title="−30 s (←)">⟨</button>
+          <button class="btn icon play" id="play" title="Play / pause (space)">▶</button>
+          <button class="btn icon" id="step-fwd" title="+30 s (→)">⟩</button>
+          <select id="speed" title="Playback step per tick">
+            <option value="30000">30 s / tick</option>
+            <option value="60000">1 min / tick</option>
+            <option value="300000">5 min / tick</option>
+            <option value="3600000">1 h / tick</option>
+            <option value="86400000">1 day / tick</option>
+          </select>
+          <button class="btn" id="latest" title="Jump to the newest row in the table">Latest</button>
+        </div>
+      </div>
+      <input id="time" type="range" min="0" max="4000" step="1" value="4000">
+      <div class="time-scale"><span id="time-min"></span><span id="time-max"></span></div>
+    </div>
+    <div id="legend">
+      <span><i class="dot available"></i>available</span>
+      <span><i class="dot oncall"></i>on call</span>
+      <span><i class="dot hired"></i>hired</span>
+      <span><i class="dot offline"></i>went offline</span>
+    </div>
+    <div id="toast"></div>
+  </main>
+</div>
+<script src="vendor/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

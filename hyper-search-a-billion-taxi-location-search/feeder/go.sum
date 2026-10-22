@@ -1,0 +1,8 @@
+filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
+filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+github.com/apache/doris-sdk/stream-load-sdks/doris_go_stream_load v0.0.0-20260723060344-5f10fab27974 h1:2mKlwxo7g7Vo6rXRI4Q/pmJG7kh35sAKryPemY2XR6Y=
+github.com/apache/doris-sdk/stream-load-sdks/doris_go_stream_load v0.0.0-20260723060344-5f10fab27974/go.mod h1:kcbqO8ZOrxE99DrJe295gky7LM1ulR5Ivaf6JHqEMyQ=
+github.com/go-sql-driver/mysql v1.9.3 h1:U/N249h2WzJ3Ukj8SowVFjdtZKfu9vlLZxjPXV1aweo=
+github.com/go-sql-driver/mysql v1.9.3/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI64Gl8i5p1WMU=
+golang.org/x/crypto v0.33.0 h1:IOBPskki6Lysi0lo9qQvbxiQ+FvsCC/YWOecCHAixus=
+golang.org/x/crypto v0.33.0/go.mod h1:bVdXmD7IV/4GdElGPozy6U7lWdRXA4qyRVGJV57uQ5M=

@@ -1,0 +1,31 @@
+# taxi-gen configuration. Every key is optional; CLI flags override these values.
+# Run `taxi-gen plan` to see what a configuration produces before generating.
+
+rows  = 1_000_000_000   # exact total row count across all files
+days  = 490             # date span; file N covers [-(N+1) days, -N days) relative to load time
+taxis = 100_000         # fleet size / distinct plates (taxi_id 0..taxis-1)
+
+plate_prefix = "SH"     # plate = prefix + series letter + 4 digits + check letter, e.g. SHA0000D
+
+ping_secs        = 30   # ping interval while on shift
+ping_jitter_secs = 3
+shift_min_minutes = 60  # rows are clustered into shifts so trajectories are contiguous
+shift_max_minutes = 240
+
+seed = 42               # same seed + same config => byte-identical files
+out  = "../data"        # output dir (relative to where you run the binary)
+
+rows_per_file = 2_000_000   # each day is split into chunks of ~this many rows (bounds worker memory)
+row_group  = 1_000_000
+zstd_level = 3
+threads    = 0          # 0 = all cores
+
+# Company mix, assigned per taxi by weight.
+companies = [
+  { name = "ComfortDelGro", weight = 45 },
+  { name = "SMRT",          weight = 15 },
+  { name = "Trans-Cab",     weight = 15 },
+  { name = "Premier",       weight = 10 },
+  { name = "Prime",         weight = 8 },
+  { name = "Strides",       weight = 7 },
+]
