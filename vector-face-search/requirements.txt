@@ -1,0 +1,8 @@
+onnxruntime
+onnx
+numpy
+opencv-python-headless
+pillow
+pyarrow
+pymysql
+huggingface_hub
