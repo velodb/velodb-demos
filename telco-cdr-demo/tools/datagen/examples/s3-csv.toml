@@ -1,0 +1,33 @@
+# CSV objects in S3: <prefix><folder_prefix>NNNNN/<file_name_prefix>NNNNNN.csv,
+# four writers, each object uploaded in multipart parts as it is written.
+#
+#   AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... datagen --config examples/s3-csv.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "csv"
+rows = 10000000
+
+[speed]
+generator_batch_rows = 5000
+queue_depth = 32
+
+[threading]
+sink_threads = 4
+
+[sink]
+dest = "s3"
+
+[s3]
+bucket = "my-bucket"
+prefix = "datagen/events/run-01/"
+region = "ap-southeast-1"
+file_size = "256MiB"
+file_name_prefix = "part-"
+folder_prefix = "batch-"
+files_per_folder = 100
+part_size = "16MiB"
+max_concurrent_parts = 4
+retries = 10
+timeout = "60s"
+header = true

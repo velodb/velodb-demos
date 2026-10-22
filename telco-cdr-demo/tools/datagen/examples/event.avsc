@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "Event",
+  "namespace": "datagen.sample",
+  "fields": [
+    {"name": "id", "type": "string"},
+    {"name": "customer", "type": {
+      "type": "record", "name": "Customer", "fields": [
+        {"name": "first_name", "type": "string"},
+        {"name": "last_name", "type": "string"},
+        {"name": "email", "type": "string"}
+      ]
+    }},
+    {"name": "age", "type": "int"},
+    {"name": "amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "created_at", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+    {"name": "status", "type": {"type": "enum", "name": "Status", "symbols": ["active", "inactive", "blocked"]}},
+    {"name": "tags", "type": {"type": "array", "items": "string"}},
+    {"name": "label", "type": ["null", "string"], "default": null}
+  ]
+}

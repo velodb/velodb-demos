@@ -1,0 +1,51 @@
+# strategy.toml — how the desk trades. Hot reloaded (except starting_cash_amount).
+# Every key is optional; missing keys use the defaults shown here.
+
+[capital]
+starting_cash_amount          = 1_000_000_000_000   # $1T. Recorded in Doris on first start; change needs `finsim run -reset`
+target_cash_ratio             = 0.30                # keep ~30% cash, ~70% equity
+rebalance_interval_seconds    = 30                  # how often the cash ratio is checked and buy_chance nudged
+initial_equity_ratio          = 0.65                # seed the book to this equity share on a fresh start; 0 = start all cash
+initial_position_trade_amount = 10_000_000          # ticket size used only for seed trades
+
+[trading]
+trades_per_second        = 50
+trade_min_amount         = 10_000
+trade_max_amount         = 1_000_000
+trade_amount_distribution = "log-uniform"          # "log-uniform": $10K most likely, $1M rare. Or "uniform".
+buy_chance               = 0.50                     # starting probability that a trade is a BUY (calibrator moves it)
+buy_chance_step          = 0.05                     # added while cash is above target, removed while below
+buy_chance_min           = 0.05
+buy_chance_max           = 0.95
+optimal_trade_chance     = 0.01                     # follow buy-low / sell-high on the perceived band; otherwise the other half
+maintain_target_weight   = true                     # true: buys only underweight names, sells only overweight, pick ∝ dollar gap to target
+                                                    # false: pick uniformly at random within the chosen half of the band
+optimal_trade_chance_when_rich = 0.30               # latched once NAV > nav_rich_threshold_amount: stays until NAV < nav_poor_threshold_amount
+nav_rich_threshold_amount      = 2_000_000_000_000  # $2T
+optimal_trade_chance_when_poor = 0.70               # latched once NAV < nav_poor_threshold_amount: stays until NAV > nav_rich_threshold_amount
+                                                    # optimal_trade_chance itself applies only from start/config reload until the first crossing
+nav_poor_threshold_amount      = 500_000_000_000    # $0.5T
+trade_cost_rate          = 0.0001                   # clearing fee: 0.01% of notional per trade
+trade_cost_min_amount    = 0.01                     # at least $0.01
+
+[block_trades]                                      # orders worked in tranches; the symbol is locked meanwhile. Blocks do not move prices.
+block_trade_chance                 = 0.02           # share of trades that become blocks (50/s × 0.02 × 5 s ≈ 5 in progress)
+block_trade_slices                 = 5              # tranches per block
+block_trade_slice_interval_seconds = 1              # seconds between tranches; the symbol is locked until the last one fills
+
+[extreme_trades]                                    # opportunistic all-in orders at band extremes (checked every second)
+sell_all_at_high        = false                     # dump an entire holding, as one block, when it sits at/above sell_all_band_position
+sell_all_band_position  = 0.95                      # of the perceived band
+sell_all_max_cash_ratio = 0.50                      # only while cash is below this share of NAV
+suck_all_at_low         = false                     # buy suck_all_cash_share of cash in one block when a stock is at/below suck_all_band_position
+suck_all_band_position  = 0.05
+suck_all_cash_share     = 0.10
+suck_all_min_cash_ratio = 0.28                      # only while cash is at least this share of NAV
+panic_sell_at_low        = false                     # LOSE MONEY: dump an entire holding, as one block, when it sits at/below panic_sell_band_position
+panic_sell_band_position = 0.05                      # of the perceived band
+panic_sell_max_cash_ratio = 0.50                     # only while cash is below this share of NAV
+fomo_buy_at_high         = false                     # LOSE MONEY: buy fomo_buy_cash_share of cash in one block when a stock is at/above fomo_buy_band_position
+fomo_buy_band_position   = 0.95
+fomo_buy_cash_share      = 0.10
+fomo_buy_min_cash_ratio  = 0.28                      # only while cash is at least this share of NAV
+chance_per_second       = 0.10                      # each eligible stock fires with this chance per second (at most one order per second)

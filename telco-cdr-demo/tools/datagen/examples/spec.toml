@@ -1,0 +1,75 @@
+# One generator per field. A dotted name such as "customer.email" is a field
+# inside a record for Avro, Protobuf and JSON, and a dotted column for CSV.
+# Table order is column order.
+version = 1
+
+[csv]
+delimiter = ","
+quote = "\""
+escape = "\""
+newline = "\n"
+null = ""
+
+[batch]
+rows = 1000
+
+[fields.id]
+type = "sequence_string"
+template = "evt-{}"
+width = 16
+
+[fields.email_domain]
+hidden = true
+type = "choice"
+values = ["example.com", "example.net", "example.org"]
+
+[fields."customer.first_name"]
+type = "name"
+part = "first"
+
+[fields."customer.last_name"]
+type = "name"
+part = "last"
+
+[fields."customer.email"]
+type = "template"
+value = "{{lower customer.first_name}}.{{lower customer.last_name}}@{{email_domain}}"
+
+[fields.age]
+type = "int_range"
+min = 18
+max = 90
+
+[fields.amount]
+type = "decimal_range"
+min = "1.00"
+max = "999.99"
+scale = 2
+
+[fields.created_at]
+type = "datetime_around"
+offset_seconds_min = -86400
+offset_seconds_max = 0
+format = "%Y-%m-%d %H:%M:%S"
+
+[fields.status]
+type = "weighted_choice"
+values = [
+  { value = "active", weight = 80 },
+  { value = "inactive", weight = 15 },
+  { value = "blocked", weight = 5 },
+]
+
+[fields.tags]
+type = "array"
+min_len = 0
+max_len = 3
+element = { type = "choice", values = ["new", "vip", "trial", "beta"] }
+
+[fields.label]
+type = "javascript"
+function = "label"
+file = "label.js"
+deps = ["id", "age"]
+# The function keeps no state, so every thread can run it.
+parallel = true

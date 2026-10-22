@@ -1,0 +1,15 @@
+# CSV to stdout: a header line, then one row per line.
+#
+#   datagen --config examples/console-csv.toml --rows 10
+#   datagen --config examples/console-csv.toml --rows 1000000 | gzip > events.csv.gz
+
+[generation]
+spec = "spec.toml"
+schema_type = "csv"
+rows = 1000
+
+[sink]
+dest = "console"
+
+[console]
+header = true

@@ -1,0 +1,8 @@
+/target
+*.parquet
+*.csv
+# Local configs may name real buckets or hold credentials.
+*.local.*
+.DS_Store
+.*.swp
+/test-output

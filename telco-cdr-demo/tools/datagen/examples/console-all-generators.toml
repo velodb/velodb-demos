@@ -1,0 +1,11 @@
+# The all-generators spec as JSON, so nested values and nulls are visible.
+#
+#   datagen --config examples/console-all-generators.toml --rows 3
+
+[generation]
+spec = "all-generators.toml"
+schema_type = "json"
+rows = 10
+
+[sink]
+dest = "console"

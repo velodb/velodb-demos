@@ -1,0 +1,4 @@
+# Python deps for every script; ensure-venv.sh installs them into ./venv (git-ignored).
+sentence-transformers==6.0.0   # pulls in torch, transformers
+numpy==2.5.2
+PyMySQL==1.2.0

@@ -1,0 +1,24 @@
+# Stop conditions and rate caps. rows and time both stop the run, whichever
+# comes first; row_rate_per_second and byte_rate_per_second cap the speed,
+# one or the other. Each cap allows a two-second burst at the start.
+#
+#   datagen --config examples/limits.toml
+#   datagen --config examples/limits.toml --rows-per-second 100 --time 3s   # flags override
+
+[generation]
+spec = "spec.toml"
+schema_type = "json"
+rows = 1000000
+time = "10s"
+
+[speed]
+# row_rate_per_second = 5000
+byte_rate_per_second = "256KiB"
+generator_batch_rows = 500     # smaller batches make a slow stream start sooner
+queue_depth = 4
+
+[threading]
+generator_threads = 2
+
+[sink]
+dest = "console"

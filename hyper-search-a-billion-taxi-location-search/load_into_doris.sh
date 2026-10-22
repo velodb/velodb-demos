@@ -4,12 +4,14 @@
 # BASE marker: load_base_<database>.<table>.txt. If it exists, its BASE is reused and the run simply continues where it left off
 # (FINISHED chunks skipped, a LOADING chunk waited on, missing/CANCELLED chunks submitted) - rerun until all
 # chunks are done. If it does not exist, BASE = now (UTC) and the marker is written.
-# truncate_doris_table.sh deletes the marker, so the next load starts a fresh BASE.
+# create_table_doris.sh writes the marker too: the table has static day partitions around that BASE, so a
+# load with a BASE whose day has no partition is refused (use --recreate to start over with BASE = now).
 #
 #   ./load_into_doris.sh                          # default: 2 sequential chunks (~245 days each), wait for completion
 #   ./load_into_doris.sh --chunks 5               # more, smaller loads (less BE memory: a load holds a memtable
 #                                                 #   per tablet it touches; 494 partitions x 32 buckets at once OOMs a 32 GB BE)
-#   ./load_into_doris.sh --recreate               # DROP + CREATE the table first (create_table_doris.sh); new BASE
+#   ./load_into_doris.sh --recreate               # DROP + CREATE the table first (create_table_doris.sh); new BASE,
+#                                                 #   partitions re-anchored on it
 #   ./load_into_doris.sh --base '2026-08-26 10:00:00'
 #   ./load_into_doris.sh --glob 'day_00*.parquet' # subset (single load)
 #   ./load_into_doris.sh --prefix hyper-search-test --glob day_489_01.parquet   # smoke test
@@ -172,7 +174,7 @@ SQL
 
 # ---- guards (a fresh BASE must start from an empty, idle table; a marker means we are continuing) ----
 if [ "$RECREATE" = 1 ]; then
-  ./create_table_doris.sh
+  ./create_table_doris.sh --base "$BASE"
 elif [ "$RESUME" != 1 ] && [ "$APPEND" != 1 ]; then
   running=$(running_loads)
   if [ -n "$running" ]; then
@@ -186,6 +188,14 @@ elif [ "$RESUME" != 1 ] && [ "$APPEND" != 1 ]; then
     echo "run ./truncate_doris_table.sh first, or use --recreate, or --append to load on top." >&2
     exit 2
   fi
+fi
+
+# static partitions: the BASE day must have one (rows outside the partitions would fail the load)
+bday="p$(echo "$BASE" | cut -c1-10 | tr -d '-')"
+if ! sql -e "SHOW PARTITIONS FROM ${DATABASE}.${TABLE} WHERE PartitionName = '${bday}'" 2>/dev/null | grep -q "$bday"; then
+  echo "refusing: ${DATABASE}.${TABLE} has no partition ${bday} for BASE ${BASE}; its static partitions were created for" >&2
+  echo "another BASE. Use --base with the BASE in create_table.sql, or --recreate (DROP + CREATE around BASE = now)." >&2
+  exit 2
 fi
 
 if [ -z "$LOCAL_DIR" ]; then

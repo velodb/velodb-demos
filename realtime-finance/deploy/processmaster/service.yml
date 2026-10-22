@@ -1,0 +1,40 @@
+application: finsim
+
+global:
+  enabled: true
+
+process:
+  working_directory: /opt/processmaster/dropin/finsim
+  start_command:
+    - ./finsim
+    - run
+    - -dir
+    - .
+    - -listen
+    - "127.0.0.1:19073"
+  stop_signal: SIGTERM
+  stop_grace_period_ms: 45000
+  user: service
+  group: service
+
+logs:
+  stdout: ./logs/stdout.log
+  stderr: ./logs/stderr.log
+
+restart_policy:
+  policy: always
+  restart_backoff_ms: 2000
+  tolerance:
+    max_restarts: 10
+    duration: 5m
+
+provisioning:
+  - path: .
+    ownership:
+      owner: service
+      group: service
+      recursive: true
+  - path: ./finsim
+    mode: "0755"
+  - path: ./doris.env
+    mode: "0600"
