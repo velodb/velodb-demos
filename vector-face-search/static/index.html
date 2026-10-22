@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face Similarity Search · Doris HNSW</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #667085; --line: #e4e7ec;
+    --accent: #2f6fed; --accent-ink: #ffffff; --chip: #eef2f7;
+    --same: #12b76a; --likely: #5b8def; --resem: #f79009; --diff: #98a2b3; --bad: #d92d20;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --panel: #171b21; --ink: #e6e9ee; --muted: #98a2b3; --line: #2a303a;
+            --accent: #5b8def; --chip: #232a34; --same: #32d583; --shadow: none; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  #stats { margin-left: auto; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #stats b { color: var(--ink); }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; max-width: 1600px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); align-self: start; position: sticky; top: 72px; max-height: calc(100vh - 92px); overflow: auto; }
+  aside h2, section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  aside h2:first-child { margin-top: 0; }
+  #drop { position: relative; border: 2px dashed var(--line); border-radius: 10px; min-height: 180px; display: grid; place-items: center; text-align: center; color: var(--muted); cursor: pointer; overflow: hidden; background: var(--bg); }
+  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  #drop .prompt b { color: var(--accent); }
+  #preview { position: relative; display: none; width: 100%; line-height: 0; }
+  #preview img { width: 100%; display: block; }
+  .box { position: absolute; border: 2px solid rgba(255,255,255,.85); border-radius: 4px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); cursor: pointer; }
+  .box.on { border-color: var(--same); box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 0 0 4px color-mix(in srgb, var(--same) 40%, transparent); }
+  .box span { position: absolute; top: -20px; left: -2px; background: var(--same); color: #fff; font: 600 11px/18px sans-serif; padding: 0 5px; border-radius: 3px; white-space: nowrap; }
+  .btns { display: flex; gap: 8px; margin-top: 8px; }
+  button { font: inherit; }
+  .btn { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  #camera { display: none; margin-top: 8px; }
+  #camera video { width: 100%; border-radius: 8px; transform: scaleX(-1); background: #000; }
+  #query { display: none; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; margin-top: 12px; padding: 10px; border-radius: 10px; background: var(--chip); }
+  #query img { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; }
+  #query .t { font-size: 12px; color: var(--muted); }
+  #query .t b { color: var(--ink); font-size: 13px; }
+  .field { margin: 8px 0; }
+  .field > span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label { flex: 1; color: var(--muted); }
+  .row output { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 2; accent-color: var(--accent); }
+  input[type=number], select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; cursor: pointer; }
+  .check input { margin-top: 3px; accent-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+  .timing { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .timing span:nth-child(odd) { color: var(--muted); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 6px 0 0; }
+  .legend { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  section { min-width: 0; }
+  section h2:first-child { margin-top: 0; }
+  #msg { padding: 14px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); margin-bottom: 14px; display: none; }
+  #msg.err { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  #people { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+  .person { flex: 0 0 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: var(--shadow); cursor: pointer; }
+  .person img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--chip); display: block; }
+  .person .n { font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person .m { font-size: 12px; color: var(--muted); }
+  #results { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: var(--shadow); cursor: pointer; transition: transform .1s; }
+  .card:hover, .person:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card .ph { position: relative; }
+  .card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--chip); display: block; }
+  .rank { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .card .n { font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .m { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .score { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .bar { flex: 1; height: 6px; background: var(--chip); border-radius: 999px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; }
+  .verdict { font-size: 11px; font-weight: 600; }
+  .lbl { font-size: 11px; }
+  .lbl.ok { color: var(--same); }
+  .lbl.no { color: var(--resem); }
+  #samples { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+  #samples .card .n { font-size: 12px; }
+  .intro { color: var(--muted); max-width: 70ch; margin: 0 0 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Face Similarity Search <span>· ArcFace vectors + Doris HNSW ANN</span></h1>
+  <div id="stats">loading…</div>
+</header>
+<main>
+  <aside>
+    <h2>Query photo</h2>
+    <div id="drop" tabindex="0">
+      <div class="prompt"><b>Drop a photo</b>, paste, or click to choose<br><small>JPEG / PNG / HEIC-converted, any size</small></div>
+      <div id="preview"><img id="previewImg" alt=""></div>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="btns">
+      <button class="btn" id="camBtn">Use camera</button>
+      <button class="btn" id="randBtn">Random celebrity</button>
+    </div>
+    <div id="camera"><video id="video" autoplay playsinline muted></video>
+      <div class="btns"><button class="btn primary" id="snapBtn">Capture &amp; search</button><button class="btn" id="camClose">Close</button></div>
+    </div>
+    <div id="query"><img id="queryImg" alt=""><div class="t" id="queryText"></div></div>
+
+    <h2>Filters (hybrid search)</h2>
+    <label class="check"><input type="checkbox" id="verified" checked>
+      <span>Only photos whose name label is verified<br><span class="hint">label_score ≥ 0.35: the photo agrees with the person's other photos</span></span></label>
+    <div class="pair">
+      <div class="field"><span>Gender</span><select id="gender"><option value="">any</option><option>female</option><option>male</option></select></div>
+      <div class="field"><span>Source</span><select id="source"><option value="">any</option><option value="imdb">IMDb</option><option value="wiki">Wikipedia</option></select></div>
+    </div>
+    <div class="pair">
+      <div class="field"><span>Born from</span><input type="number" id="bornFrom" placeholder="1900"></div>
+      <div class="field"><span>Born to</span><input type="number" id="bornTo" placeholder="2000"></div>
+    </div>
+    <div class="row"><label for="topk">Top K</label><input type="range" id="topk" min="6" max="96" step="6" value="30"><output id="topkOut">30</output></div>
+    <div class="row"><label for="ef">hnsw_ef_search</label><input type="range" id="ef" min="16" max="512" step="16" value="128"><output id="efOut">128</output></div>
+
+    <h2>Score (cosine similarity)</h2>
+    <div class="legend">
+      <div><i style="background:var(--same)"></i>≥ 0.50 &nbsp;same person</div>
+      <div><i style="background:var(--likely)"></i>0.35–0.50 &nbsp;likely same person</div>
+      <div><i style="background:var(--resem)"></i>0.20–0.35 &nbsp;resemblance / look-alike</div>
+      <div><i style="background:var(--diff)"></i>&lt; 0.20 &nbsp;different person</div>
+    </div>
+
+    <div id="timingWrap" style="display:none">
+      <h2>Timing</h2>
+      <div class="timing" id="timing"></div>
+      <details><summary>SQL sent to Doris</summary><pre id="sql"></pre></details>
+    </div>
+  </aside>
+
+  <section>
+    <div id="msg"></div>
+    <div id="home">
+      <p class="intro">Upload a photo (or use the camera). Faces are detected and turned into 512-dim ArcFace
+        vectors locally, then Doris finds the nearest faces with its HNSW vector index, combined with the
+        SQL filters on the left. Or start from one of these dataset faces:</p>
+      <div id="samples"></div>
+    </div>
+    <div id="out" style="display:none">
+      <h2>Who does this face look like? <span class="hint" style="text-transform:none;letter-spacing:0">(ANN over one centroid vector per person)</span></h2>
+      <div id="people"></div>
+      <h2>Most similar photos</h2>
+      <div id="results"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let current = null;          // {kind:'upload', image} | {kind:'id', face_id}
+let chosenFace = 0;
+
+function verdict(s) {
+  if (s >= 0.50) return ['same person', 'var(--same)'];
+  if (s >= 0.35) return ['likely same', 'var(--likely)'];
+  if (s >= 0.20) return ['look-alike', 'var(--resem)'];
+  return ['different', 'var(--diff)'];
+}
+function filters() {
+  return { verified: $('#verified').checked, gender: $('#gender').value, source: $('#source').value,
+           born_from: $('#bornFrom').value, born_to: $('#bornTo').value };
+}
+function showMsg(t, err) { const m = $('#msg'); m.textContent = t || ''; m.className = err ? 'err' : ''; m.style.display = t ? 'block' : 'none'; }
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) } : {});
+  const j = await r.json();
+  if (!r.ok && !j.error) j.error = r.statusText;
+  return j;
+}
+
+// thumbnails live in Doris: fetch all visible ones with a single batched query
+const thumbCache = {};
+async function loadThumbs(root) {
+  const imgs = [...root.querySelectorAll('img[data-face]:not([src])')];
+  for (const im of imgs) if (thumbCache[im.dataset.face]) im.src = thumbCache[im.dataset.face];
+  const need = [...new Set(imgs.filter(im => !im.src).map(im => im.dataset.face))];
+  if (!need.length) return;
+  const got = await api('/api/thumbs?ids=' + need.join(','));
+  for (const id in got) thumbCache[id] = 'data:image/jpeg;base64,' + got[id];
+  for (const im of imgs) if (!im.src && thumbCache[im.dataset.face]) im.src = thumbCache[im.dataset.face];
+}
+
+async function stats() {
+  const s = await api('/api/stats');
+  if (s.error) { $('#stats').textContent = s.error; return; }
+  $('#stats').innerHTML = `<b>${s.faces.toLocaleString()}</b> faces · <b>${s.names.toLocaleString()}</b> names · <b>${s.people.toLocaleString()}</b> identity centroids · <b>${s.verified.toLocaleString()}</b> verified labels`;
+}
+async function samples() {
+  const rows = await api('/api/samples');
+  if (rows.error) return;
+  $('#samples').innerHTML = rows.map(r => `<div class="card" data-id="${r.face_id}">
+      <img data-face="${r.face_id}" alt=""><div class="n">${esc(r.name)}</div></div>`).join('');
+  loadThumbs($('#samples'));
+}
+
+// ------------------------------------------------------------- inputs
+function loadFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    // downscale in the browser: faster upload, and EXIF rotation is applied by drawImage
+    const max = 1600, s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    useImage(c.toDataURL('image/jpeg', 0.92));
+  };
+  img.src = url;
+}
+function useImage(dataUrl) {
+  current = { kind: 'upload', image: dataUrl };
+  chosenFace = 0;
+  $('#previewImg').src = dataUrl;
+  $('#preview').style.display = 'block';
+  $('#drop .prompt').style.display = 'none';
+  search();
+}
+const drop = $('#drop');
+drop.onclick = () => $('#file').click();
+$('#file').onchange = e => loadFile(e.target.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); };
+document.onpaste = e => { const f = [...e.clipboardData.files][0]; if (f) loadFile(f); };
+
+let stream = null;
+$('#camBtn').onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+    $('#video').srcObject = stream; $('#camera').style.display = 'block';
+  } catch (e) { showMsg('Camera not available: ' + e.message, true); }
+};
+function closeCam() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $('#camera').style.display = 'none'; }
+$('#camClose').onclick = closeCam;
+$('#snapBtn').onclick = () => {
+  const v = $('#video'), c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  const g = c.getContext('2d'); g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(v, 0, 0);
+  closeCam(); useImage(c.toDataURL('image/jpeg', 0.92));
+};
+$('#randBtn').onclick = async () => {
+  const rows = await api('/api/samples');
+  if (rows.length) searchById(rows[0].face_id);
+};
+$('#samples').onclick = e => { const c = e.target.closest('[data-id]'); if (c) searchById(+c.dataset.id); };
+
+function searchById(id) {
+  current = { kind: 'id', face_id: id };
+  $('#preview').style.display = 'none'; $('#drop .prompt').style.display = '';
+  search();
+}
+
+// ------------------------------------------------------------- search
+let seq = 0;
+async function search() {
+  if (!current) return;
+  const my = ++seq;
+  showMsg('Searching…');
+  const body = { top_k: +$('#topk').value, ef: +$('#ef').value, filters: filters() };
+  let res;
+  const t0 = performance.now();
+  if (current.kind === 'upload') res = await api('/api/search', { ...body, image: current.image, face: chosenFace });
+  else res = await api('/api/search-by-id', { ...body, face_id: current.face_id });
+  if (my !== seq) return;
+  const total = performance.now() - t0;
+  drawBoxes(res);
+  if (res.error) { showMsg(res.error, true); return; }
+  showMsg('');
+  render(res, total);
+}
+
+function drawBoxes(res) {
+  const p = $('#preview');
+  p.querySelectorAll('.box').forEach(b => b.remove());
+  if (current.kind !== 'upload' || !res.faces) return;
+  res.faces.forEach((f, i) => {
+    const [x1, y1, x2, y2] = f.bbox, b = document.createElement('div');
+    b.className = 'box' + (i === res.chosen ? ' on' : '');
+    Object.assign(b.style, { left: x1 * 100 + '%', top: y1 * 100 + '%', width: (x2 - x1) * 100 + '%', height: (y2 - y1) * 100 + '%' });
+    if (res.faces.length > 1) b.innerHTML = i === res.chosen ? '<span>searching this face</span>' : '';
+    b.title = res.faces.length > 1 ? 'Search this face' : '';
+    b.onclick = e => { e.stopPropagation(); chosenFace = i; search(); };
+    p.appendChild(b);
+  });
+}
+
+function scoreRow(s) {
+  const [v, col] = verdict(s);
+  const w = Math.max(0, Math.min(1, s)) * 100;
+  return `<div class="score"><b>${s.toFixed(3)}</b><div class="bar"><i style="width:${w}%;background:${col}"></i></div></div>
+          <div class="verdict" style="color:${col}">${v}</div>`;
+}
+
+function render(res, total) {
+  $('#home').style.display = 'none';
+  $('#out').style.display = 'block';
+  // query summary
+  const q = $('#query');
+  q.style.display = 'grid';
+  if (current.kind === 'upload') {
+    $('#queryImg').src = 'data:image/jpeg;base64,' + res.aligned;
+    $('#queryText').innerHTML = `<b>Aligned query face</b><br>${res.faces.length} face${res.faces.length > 1 ? 's' : ''} detected` +
+      (res.faces.length > 1 ? ' — click a box to switch' : '') + `<br>detector confidence ${res.faces[res.chosen].score}`;
+  } else {
+    $('#queryImg').removeAttribute('src'); $('#queryImg').dataset.face = res.query_face.face_id; loadThumbs($('#query'));
+    $('#queryText').innerHTML = `<b>${esc(res.query_face.name)}</b><br>dataset face #${res.query_face.face_id}<br>vector read from Doris`;
+  }
+  // timing + SQL
+  const t = res.timing, rows = [];
+  const names = { decode_ms: 'decode image', detect_ms: 'face detection (SCRFD)', embed_ms: 'align + ArcFace embed', fetch_vector_ms: 'read query vector from Doris', doris_ms: 'Doris ANN: photos (incl. network)', doris_people_ms: 'Doris ANN: people (parallel)' };
+  for (const k in names) if (t[k] != null) rows.push(`<span>${names[k]}</span><span>${t[k].toFixed(0)} ms</span>`);
+  rows.push(`<span>end-to-end in browser</span><span>${total.toFixed(0)} ms</span>`);
+  $('#timing').innerHTML = rows.join('');
+  $('#sql').textContent = res.sql;
+  $('#timingWrap').style.display = 'block';
+
+  $('#people').innerHTML = res.people.length ? res.people.map(p => `<div class="person" data-id="${p.face_id}">
+      <img data-face="${p.face_id}" alt="">
+      <div class="n" title="${esc(p.name)}">${esc(p.name)}</div>
+      <div class="m">${p.birth_year ? 'b. ' + p.birth_year + ' · ' : ''}${p.verified_photos} of ${p.photos} photos</div>
+      ${scoreRow(p.score)}</div>`).join('')
+    : '<p class="hint">No person matches these filters.</p>';
+
+  $('#results').innerHTML = res.results.map((r, i) => {
+    const ok = r.label_score != null && r.label_score >= 0.35;
+    const lbl = r.label_score == null ? '<span class="lbl">label unchecked</span>'
+      : ok ? `<span class="lbl ok" title="label_score ${r.label_score}">✓ label verified</span>`
+           : `<span class="lbl no" title="label_score ${r.label_score}: this photo does not look like ${esc(r.name)}'s other photos">? label doubtful</span>`;
+    return `<div class="card" data-id="${r.face_id}">
+      <div class="ph"><img data-face="${r.face_id}" alt=""><span class="rank">#${i + 1}</span></div>
+      <div class="n" title="${esc(r.name)}">${esc(r.name)}</div>
+      <div class="m">${[r.gender, r.photo_year && ('photo ' + r.photo_year), r.age != null && ('age ' + r.age), r.source].filter(Boolean).join(' · ')}</div>
+      ${scoreRow(r.score)}<div>${lbl}</div></div>`;
+  }).join('');
+  loadThumbs($('#people')); loadThumbs($('#results'));
+}
+$('#people').onclick = $('#results').onclick = e => { const c = e.target.closest('[data-id]'); if (c) searchById(+c.dataset.id); };
+
+for (const [id, out] of [['#topk', '#topkOut'], ['#ef', '#efOut']]) {
+  $(id).oninput = () => $(out).textContent = $(id).value;
+  $(id).onchange = search;
+}
+for (const id of ['#verified', '#gender', '#source', '#bornFrom', '#bornTo']) $(id).onchange = search;
+
+stats(); samples();
+</script>
+</body>
+</html>
