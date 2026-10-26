@@ -1,0 +1,10 @@
+venv/
+models/
+data/
+export/
+faces.db
+faces-*.db
+__pycache__/
+.env
+.env.*
+create_table.sql
