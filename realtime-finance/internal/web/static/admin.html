@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/finsim/">
+<title>Money Market Demo · Admin</title>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #111a2c; --panel-2: #16213a; --line: #223050; --line-2: #2b3a5c;
+    --text: #e6ecf7; --muted: #8b9bb8; --dim: #5d6c8a;
+    --accent: #4f8cff; --accent-2: #7cb3ff; --up: #22c55e; --down: #ef4444; --amber: #f59e0b;
+    --radius: 10px; --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(--sans); }
+  body { padding: 0 16px 40px; }
+  a { color: var(--accent-2); text-decoration: none; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--muted); } .dim { color: var(--dim); } .amber { color: var(--amber); }
+  header { display: flex; align-items: center; gap: 16px; height: 56px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  header b { font-size: 16px; } header .tagline { color: var(--muted); }
+  header .back { margin-left: auto; padding: 5px 12px; border: 1px solid var(--line-2); border-radius: 8px; color: var(--text); }
+  main { max-width: 1100px; margin: 0 auto; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kpi, .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+  .kpi .label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 2px; min-height: 18px; }
+  .banner { border: 1px solid rgba(239,68,68,.5); background: rgba(239,68,68,.10); color: #fca5a5; border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; }
+  .banner[hidden] { display: none; }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0 0 10px; color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input { flex: 1; min-width: 180px; background: var(--bg); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px 10px; font: 14px var(--mono); }
+  input:focus { outline: 1px solid var(--accent); }
+  button { background: var(--accent); color: #0b1220; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.danger { background: var(--down); color: #fff; }
+  button.warn { background: var(--amber); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line-2); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .preview { margin-top: 10px; display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 12.5px; }
+  .preview .k { color: var(--muted); }
+  .msg { margin-top: 10px; min-height: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  th.l, td.l { text-align: left; }
+  .empty { color: var(--dim); text-align: center; padding: 16px; }
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, 1fr); } .cards { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <b>Money Market Demo</b><span class="tagline">Admin · cash top-up and withdrawal</span>
+  <a class="back" href="./">← Dashboard</a>
+</header>
+<main>
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="kpis">
+    <div class="kpi"><div class="label">Cash</div><div class="value num" id="cash">–</div><div class="sub num" id="cash-sub">–</div></div>
+    <div class="kpi"><div class="label">NAV</div><div class="value num" id="nav">–</div><div class="sub num" id="nav-sub">–</div></div>
+    <div class="kpi"><div class="label">Net P&amp;L</div><div class="value num" id="pnl">–</div><div class="sub num" id="pnl-sub">–</div></div>
+    <div class="kpi"><div class="label">Net withdrawn, counted in P&amp;L</div><div class="value num" id="paid">–</div><div class="sub num" id="paid-sub">–</div></div>
+  </section>
+
+  <section class="cards">
+    <div class="card">
+      <h2>Withdraw cash</h2>
+      <p>Moves cash out of the book, like a dividend: cash and NAV drop, P&amp;L does not. You may withdraw more than the cash on hand, up to the NAV. Cash then goes negative and every buy is blocked until sells bring it back above zero.</p>
+      <div class="row">
+        <input id="amount" placeholder="e.g. 1.5T, 200B, 50M" autocomplete="off">
+        <button id="withdraw">Withdraw</button>
+        <button id="withdraw-cancel" class="ghost" hidden>Cancel</button>
+      </div>
+      <div class="preview" id="w-preview"></div>
+      <div class="msg num" id="w-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Top up cash</h2>
+      <p>Adds cash to the book, a capital injection: cash and NAV rise, P&amp;L does not. Always allowed. Use it to lift a negative cash position and unblock buys at once.</p>
+      <div class="row">
+        <input id="topup-amount" placeholder="e.g. 500B, 1T" autocomplete="off">
+        <button id="topup">Top up</button>
+      </div>
+      <div class="preview" id="t-preview"></div>
+      <div class="msg num" id="t-msg"></div>
+    </div>
+
+    <div class="card wide">
+      <h2>Forget all cash withdrawals</h2>
+      <p>P&amp;L counts withdrawn cash as profit forever, which is why it grows so large. Forgetting writes off every withdrawal and top-up made so far: P&amp;L becomes NAV minus starting cash. Cash, NAV and positions do not change. This cannot be undone.</p>
+      <div class="row">
+        <button id="forget" class="danger">Forget withdrawals</button>
+        <button id="forget-cancel" class="ghost" hidden>Cancel</button>
+      </div>
+      <div class="preview" id="f-preview"></div>
+      <div class="msg num" id="f-msg"></div>
+    </div>
+  </section>
+
+  <div class="card" style="margin-bottom:12px;border-color:rgba(239,68,68,.45)">
+    <h2>Reset everything</h2>
+    <p>Stops trading, drops and recreates every demo table, materialized view and view in Doris, and seeds a fresh book from strategy.toml: starting cash as configured (currently <span class="num" id="r-start">–</span>), no positions, no history, nothing withdrawn. Takes about a minute. Type <b class="num">RESET</b> to enable the button. This cannot be undone.</p>
+    <div class="row">
+      <input id="reset-confirm" placeholder="type RESET" autocomplete="off" style="max-width:200px">
+      <button id="reset" class="danger" disabled>Reset everything</button>
+    </div>
+    <div class="msg num" id="r-msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cash movements since the last forget <span class="dim" id="hist-note" style="font-weight:400;font-size:12px"></span></h2>
+    <table><thead><tr><th class="l">Time (UTC)</th><th>#</th><th class="l">Kind</th><th>Amount</th><th>Cash after</th><th>NAV after</th></tr></thead><tbody id="hist"></tbody></table>
+  </div>
+</main>
+
+<script>
+const BASE_PATH = '/finsim';
+const N = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+const money = (v, d = 2) => {
+  v = N(v); if (isNaN(v)) return '–';
+  const a = Math.abs(v), s = v < 0 ? '-' : '';
+  if (a >= 1e12) return s + '$' + (a / 1e12).toFixed(d) + 'T';
+  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(d) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(d) + 'M';
+  if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(d) + 'K';
+  return s + '$' + a.toFixed(2);
+};
+const signed = v => (N(v) > 0 ? '+' : '') + money(v);
+const cls = v => N(v) > 0 ? 'up' : N(v) < 0 ? 'down' : '';
+const pct = v => isNaN(N(v)) ? '–' : (N(v) * 100).toFixed(1) + '%';
+const $ = id => document.getElementById(id);
+function set(id, text, className) { const el = $(id); el.textContent = text; if (className !== undefined) el.className = className; }
+
+// Same grammar the server accepts: a number with an optional T, B, M or K suffix.
+function parseAmount(text) {
+  let t = text.toUpperCase().replace(/[$,_\s]/g, ''); if (!t) return NaN;
+  const mult = { T: 1e12, B: 1e9, M: 1e6, K: 1e3 }[t.slice(-1)];
+  if (mult) t = t.slice(0, -1);
+  if (!/^\d*\.?\d+$/.test(t)) return NaN;
+  return Number(t) * (mult || 1);
+}
+
+let live = null, armed = { withdraw: false, forget: false };
+
+let resetting = false, resetStartedAt = 0;
+async function poll() {
+  try {
+    const r = await fetch(BASE_PATH + '/api/live');
+    if (r.status === 503) { // the book is being reset: wiped and reseeded
+      resetting = true; if (!resetStartedAt) resetStartedAt = Date.now();
+      $('banner').hidden = false; $('banner').textContent = `Resetting: trading stopped, Doris being wiped and a fresh book seeded… ${Math.round((Date.now() - resetStartedAt) / 1000)} s`;
+      return;
+    }
+    if (!r.ok) throw new Error('live ' + r.status);
+    live = (await r.json()).live;
+    if (resetting) { resetting = false; resetStartedAt = 0; set('r-msg', `fresh book attached · cash ${money(live.cash, 3)} · ${live.position_count} positions`, 'msg num up'); $('reset-confirm').value = ''; $('reset').disabled = true; }
+    render();
+  } catch (e) { $('banner').hidden = false; $('banner').textContent = 'Cannot reach the simulator: ' + e.message; }
+}
+
+function render() {
+  const cash = N(live.cash), nav = N(live.nav), pnl = N(live.pnl), paid = N(live.paid_out), forgotten = N(live.paid_out_forgotten), start = N(live.starting_cash);
+  set('cash', money(cash, 3), 'value num ' + (cash < 0 ? 'down' : ''));
+  set('cash-sub', `${pct(live.cash_ratio)} of NAV · target ${pct(live.target_cash_ratio)} · buy chance ${pct(live.buy_chance)}`);
+  set('nav', money(nav, 3)); set('nav-sub', `equity ${money(live.equity, 3)} · started at ${money(start, 0)}`);
+  set('pnl', signed(pnl), 'value num ' + cls(pnl)); set('pnl-sub', `= NAV + withdrawn − starting cash`);
+  set('paid', money(paid, 3)); set('paid-sub', forgotten !== 0 ? `withdrawals minus top-ups · forgotten earlier ${money(forgotten, 3)}` : 'withdrawals minus top-ups · nothing forgotten yet');
+  const b = $('banner');
+  if (live.buys_blocked) { b.hidden = false; b.textContent = `Cash is ${money(cash, 2)}: every buy is blocked until sells bring cash back above zero.`; } else b.hidden = true;
+  set('r-start', money(N(live.strategy?.Capital?.StartingCashAmount ?? start), 0));
+  // history
+  const rows = [...(live.cashouts || [])].reverse();
+  $('hist').innerHTML = rows.length ? rows.map(c => { const top = N(c.amount) < 0; return `<tr><td class="l num dim">${new Date(c.ts).toISOString().replace('T', ' ').substr(0, 19)}</td><td class="num">${c.cashout_id}</td><td class="l ${top ? 'up' : 'amber'}">${top ? 'top-up' : 'withdrawal'}</td><td class="num">${money(Math.abs(N(c.amount)), 3)}</td><td class="num ${N(c.cash_after) < 0 ? 'down' : ''}">${money(c.cash_after, 3)}</td><td class="num">${money(c.nav_after, 3)}</td></tr>`; }).join('') : '<tr><td colspan="6" class="empty">none</td></tr>';
+  set('hist-note', rows.length ? `· last ${rows.length} kept in memory, the full list is in the Doris table cashouts (top-ups are negative amounts)` : '');
+  renderWithdrawPreview(); renderTopupPreview(); renderForgetPreview();
+}
+
+function renderTopupPreview() {
+  if (!live) return;
+  const a = parseAmount($('topup-amount').value), cash = N(live.cash), nav = N(live.nav), pv = $('t-preview');
+  if (isNaN(a) || a <= 0) { pv.innerHTML = cash < 0 ? `<span class="k">to unblock buys</span><span class="num">top up more than ${money(-cash, 3)}</span>` : ''; return; }
+  pv.innerHTML = `<span class="k">top up</span><span class="num">${money(a, 3)}</span>
+    <span class="k">cash after</span><span class="num ${cash + a < 0 ? 'down' : ''}">${money(cash + a, 3)}${cash < 0 && cash + a > 0 ? ' · buys unblocked' : ''}</span>
+    <span class="k">NAV after</span><span class="num">${money(nav + a, 3)}</span>
+    <span class="k">P&amp;L</span><span class="num">unchanged at ${signed(live.pnl)}</span>`;
+}
+
+function renderWithdrawPreview() {
+  if (!live) return;
+  const a = parseAmount($('amount').value), cash = N(live.cash), nav = N(live.nav), pv = $('w-preview'), btn = $('withdraw');
+  if (isNaN(a) || a <= 0) { pv.innerHTML = `<span class="k">available</span><span class="num">cash ${money(cash, 3)} · limit ${money(nav, 3)} (NAV)</span>`; btn.disabled = false; if (!armed.withdraw) { btn.textContent = 'Withdraw'; btn.className = ''; } return; }
+  const after = cash - a, over = after < 0, tooMuch = a > nav;
+  pv.innerHTML = `<span class="k">withdraw</span><span class="num">${money(a, 3)}</span>
+    <span class="k">cash after</span><span class="num ${over ? 'down' : ''}">${money(after, 3)}${over ? ' · overdraft, buys blocked until cash is positive' : ''}</span>
+    <span class="k">NAV after</span><span class="num">${money(nav - a, 3)}</span>
+    <span class="k">P&amp;L</span><span class="num">unchanged at ${signed(live.pnl)}</span>` + (tooMuch ? `<span class="k"></span><span class="num down">more than the NAV of ${money(nav, 3)}: not allowed</span>` : '');
+  btn.disabled = tooMuch;
+  if (!armed.withdraw) { btn.textContent = over ? 'Withdraw (overdraft)' : 'Withdraw'; btn.className = over ? 'warn' : ''; }
+}
+
+function renderForgetPreview() {
+  if (!live) return;
+  const paid = N(live.paid_out), pnl = N(live.pnl), pv = $('f-preview'), btn = $('forget');
+  pv.innerHTML = `<span class="k">to forget</span><span class="num">${money(paid, 3)}</span>
+    <span class="k">P&amp;L now</span><span class="num ${cls(pnl)}">${signed(pnl)}</span>
+    <span class="k">P&amp;L after</span><span class="num ${cls(pnl - paid)}">${signed(pnl - paid)} <span class="dim">= NAV ${money(live.nav, 3)} − starting cash ${money(live.starting_cash, 0)}</span></span>`;
+  btn.disabled = !(paid !== 0);
+  if (!armed.forget) btn.textContent = paid !== 0 ? 'Forget withdrawals' : 'Nothing to forget';
+}
+
+function disarm(which) {
+  armed[which] = false; $(which + '-cancel').hidden = true;
+  if (which === 'withdraw') renderWithdrawPreview(); else renderForgetPreview();
+}
+
+async function post(path, body) {
+  const r = await fetch(BASE_PATH + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+$('amount').addEventListener('input', () => { disarm('withdraw'); set('w-msg', '', 'msg num'); });
+$('amount').addEventListener('keydown', e => { if (e.key === 'Enter') $('withdraw').click(); if (e.key === 'Escape') disarm('withdraw'); });
+$('withdraw-cancel').addEventListener('click', () => disarm('withdraw'));
+$('forget-cancel').addEventListener('click', () => disarm('forget'));
+
+// Two clicks for anything that cannot be taken back: the first arms, the second executes.
+$('withdraw').addEventListener('click', async () => {
+  const text = $('amount').value.trim(), a = parseAmount(text);
+  if (isNaN(a) || a <= 0) { set('w-msg', 'enter an amount such as 200B', 'msg num down'); $('amount').focus(); return; }
+  if (!armed.withdraw) { armed.withdraw = true; $('withdraw').textContent = `Confirm: withdraw ${money(a, 3)}`; $('withdraw').className = 'danger'; $('withdraw-cancel').hidden = false; return; }
+  $('withdraw').disabled = true; set('w-msg', 'withdrawing…', 'msg num muted');
+  try {
+    const j = await post('/api/cashout', { amount: text });
+    set('w-msg', `withdrew ${money(j.amount, 3)} · cash now ${money(j.cash_after, 3)} · NAV ${money(j.nav_after, 3)}`, 'msg num ' + (N(j.cash_after) < 0 ? 'amber' : 'up'));
+    $('amount').value = '';
+  } catch (e) { set('w-msg', e.message, 'msg num down'); }
+  disarm('withdraw'); await poll();
+});
+
+// A top-up is always allowed and can be reversed by a withdrawal, so one click is enough.
+$('topup-amount').addEventListener('input', () => { renderTopupPreview(); set('t-msg', '', 'msg num'); });
+$('topup-amount').addEventListener('keydown', e => { if (e.key === 'Enter') $('topup').click(); });
+$('topup').addEventListener('click', async () => {
+  const text = $('topup-amount').value.trim(), a = parseAmount(text);
+  if (isNaN(a) || a <= 0) { set('t-msg', 'enter an amount such as 500B', 'msg num down'); $('topup-amount').focus(); return; }
+  $('topup').disabled = true; set('t-msg', 'adding…', 'msg num muted');
+  try {
+    const j = await post('/api/topup', { amount: text });
+    set('t-msg', `added ${money(Math.abs(N(j.amount)), 3)} · cash now ${money(j.cash_after, 3)} · NAV ${money(j.nav_after, 3)}`, 'msg num up');
+    $('topup-amount').value = '';
+  } catch (e) { set('t-msg', e.message, 'msg num down'); }
+  $('topup').disabled = false; await poll();
+});
+
+$('forget').addEventListener('click', async () => {
+  if (!armed.forget) { armed.forget = true; $('forget').textContent = `Confirm: forget ${money(live.paid_out, 3)}`; $('forget-cancel').hidden = false; return; }
+  $('forget').disabled = true; set('f-msg', 'forgetting…', 'msg num muted');
+  try {
+    const j = await post('/api/cashout/forget');
+    set('f-msg', `forgot ${money(j.forgotten, 3)} · P&L is now ${signed(j.live.pnl)}`, 'msg num up');
+  } catch (e) { set('f-msg', e.message, 'msg num down'); }
+  disarm('forget'); await poll();
+});
+
+// Reset: the typed word is the confirmation; the server checks it too.
+$('reset-confirm').addEventListener('input', () => { $('reset').disabled = $('reset-confirm').value.trim() !== 'RESET'; });
+$('reset').addEventListener('click', async () => {
+  if ($('reset-confirm').value.trim() !== 'RESET') return;
+  $('reset').disabled = true; set('r-msg', 'reset requested…', 'msg num muted');
+  try {
+    await post('/api/reset', { confirm: 'RESET' });
+    set('r-msg', 'reset started: wiping Doris and seeding a fresh book', 'msg num amber');
+  } catch (e) { set('r-msg', e.message, 'msg num down'); $('reset').disabled = false; }
+});
+
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

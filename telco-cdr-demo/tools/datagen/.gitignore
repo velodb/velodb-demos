@@ -1,0 +1,6 @@
+/target
+*.csv
+*.json
+*.local.*
+.DS_Store
+.*.swp

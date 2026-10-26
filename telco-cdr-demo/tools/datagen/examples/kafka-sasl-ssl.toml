@@ -1,0 +1,35 @@
+# JSON to a broker behind SASL over TLS, with every librdkafka property
+# passed through verbatim.
+#
+#   datagen --config examples/kafka-sasl-ssl.toml --time 1m
+
+[generation]
+spec = "spec.toml"
+schema_type = "json"
+
+[speed]
+row_rate_per_second = 2000
+
+[threading]
+sink_threads = 2               # two producers
+
+[sink]
+dest = "kafka"
+
+[kafka]
+brokers = "broker-1:9093,broker-2:9093"
+topic = "events"
+key_field = "id"
+in_flight = 5000
+
+[kafka.properties]
+"security.protocol" = "SASL_SSL"
+"sasl.mechanism" = "SCRAM-SHA-512"
+"sasl.username" = "datagen"
+"sasl.password" = "secret"
+# "ssl.ca.location" = "/etc/ssl/certs/ca.pem"
+"compression.type" = "zstd"
+"linger.ms" = "20"
+"batch.num.messages" = "10000"
+"acks" = "all"
+"enable.idempotence" = "true"

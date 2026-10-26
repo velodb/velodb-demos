@@ -1,0 +1,12 @@
+# JSON to stdout, one object per line; dotted spec fields nest.
+#
+#   datagen --config examples/console-json.toml --rows 10
+#   datagen --config examples/console-json.toml --rows-per-second 5000 | kcat -P -b broker:9092 -t events
+
+[generation]
+spec = "spec.toml"
+schema_type = "json"
+rows = 1000
+
+[sink]
+dest = "console"

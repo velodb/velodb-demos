@@ -1,0 +1,35 @@
+# Generator settings for data_stream_log: layout, row count and tuning.
+# The [s3] destination values are filled in from s3.env by generate.sh (bucket, prefix, region, endpoint, path_style).
+# Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, exported from s3.env by generate.sh.
+# Objects land at s3://<bucket>/<prefix>/data_stream_log/<run_id>/batch-NNNNN/part-wNN-NNNNNN.parquet
+
+[dest]
+type = "s3"
+
+[s3]
+bucket = "from-s3.env"
+prefix = "from-s3.env"
+region = "ap-southeast-1"
+endpoint = "from-s3.env"
+path_style = false
+
+[layout]
+run_id = "q3"            # run-load.sh reads the same RUN_ID (env RUN_ID overrides both)
+file_size = "1GiB"
+files_per_folder = 10    # ~10GiB per folder = one Doris load job
+
+[run]
+threads = 0
+upload_threads = 8
+queue_depth = 100
+batch_rows = 32768
+rows = 9000000000   # 20 data records / subscriber / day x 5M subscribers x 90 days, ~300GiB
+
+[upload]
+part_size = "16MiB"
+max_concurrent_parts = 4
+
+[parquet]
+compression = "zstd"
+compression_level = 3
+row_group_rows = 500000

@@ -1,0 +1,26 @@
+# JSON to Kafka, one object per message, keyed by id, 5000 rows per second.
+#
+#   datagen --config examples/kafka-json.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "json"
+
+[speed]
+row_rate_per_second = 5000
+
+[sink]
+dest = "kafka"
+
+[kafka]
+brokers = "localhost:9092"
+topic = "events"
+key_field = "id"
+in_flight = 10000
+
+[kafka.properties]
+"compression.type" = "lz4"
+# "security.protocol" = "SASL_SSL"
+# "sasl.mechanism" = "PLAIN"
+# "sasl.username" = ""
+# "sasl.password" = ""

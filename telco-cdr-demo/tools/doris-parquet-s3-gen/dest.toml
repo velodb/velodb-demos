@@ -1,0 +1,101 @@
+# Where the Parquet files go. Written by --emit-config; pass it back with
+# --config. Unknown keys are rejected, so a typo fails at startup rather than
+# being silently ignored.
+
+[dest]
+# "s3" uses the [s3] section below; "local" uses [local].
+type = "s3"
+
+[s3]
+bucket = "my-bucket"
+
+# Key prefix for generated objects. Files land at
+# <prefix><run_id>/batch-NNNNN/part-wNN-NNNNNN.parquet.
+prefix = "doris/my_table/"
+
+# Region for real AWS S3.
+region = "ap-southeast-1"
+
+# For any S3-compatible server, set endpoint instead of relying on region.
+# MinIO and Ceph address buckets by path; AWS and Alibaba OSS use a
+# subdomain, so leave path_style off for those.
+# endpoint = "https://minio.internal:9000"
+# path_style = true
+
+# Plain-HTTP endpoints are refused unless this is set.
+# allow_http = false
+
+# Credentials are optional. Omit this whole section to use the standard
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables, an
+# instance profile, or any other default AWS credential source.
+# Keep this file at mode 600 if you do put keys in it.
+# [s3.credentials]
+# access_key_id = "AKIA..."
+# secret_access_key = "..."
+# session_token = ""
+
+# TLS for the endpoint. The system roots are always trusted; add a PEM
+# bundle for an endpoint signed by a private CA. Turning verification off
+# accepts any certificate, impostors included, so it is for test servers.
+# [s3.tls]
+# ca_certificate = "/etc/ssl/private-ca.pem"
+# verify_certificates = true
+
+# A local directory instead. Everything below [layout] still applies;
+# [upload] does not.
+# [local]
+# directory = "/data/doris-out"
+
+[layout]
+# The run id names a folder of its own. It defaults to a UTC timestamp with a
+# random suffix, so restarting adds a sibling folder rather than overwriting
+# the last run. Pin it to make the folder predictable, or set it to "" to
+# write straight into the prefix.
+# run_id = "run01"
+
+# Files per batch folder. Each batch-NNNNN/ folder is a ready-made unit for
+# one Doris load job, holding about files_per_folder x --file-size of data.
+# 0 puts every file directly in the run folder.
+files_per_folder = 100
+
+[upload]
+# Multipart part size. Each part is buffered in memory before it is sent.
+# S3 requires at least 5MiB and allows at most 10000 parts per object,
+# so this also caps the largest file: 10MiB x 10000 is about 97GiB.
+part_size = "10MiB"
+
+# Parts in flight per file. Peak memory per writer thread is
+# part_size x max_concurrent_parts, so 10MiB x 8 = 80MiB here.
+max_concurrent_parts = 8
+
+# Attempts after the first for one HTTP request, and the deadline for each.
+retries = 10
+timeout = "60s"
+
+# Total wall clock one request may spend being retried, and the ceiling on the
+# backoff between attempts. These are what carry a multi-day run through an
+# outage; object_store's own default window is three minutes.
+retry_timeout = "15m"
+max_backoff = "60s"
+
+# Past those retries, a writer abandons the file it was building and starts a
+# new one instead of failing the run. The rows in the abandoned file are lost
+# and the count is reported at the end. Set to 0 to fail the run instead.
+file_retries = 8
+
+[parquet]
+# zstd, snappy, gzip, lz4, lz4_raw, or none. Doris reads all of these.
+compression = "zstd"
+
+# Codec effort: zstd 1-22, gzip 0-9. When the network is the bottleneck,
+# spending CPU here is free speed, because it shrinks what has to be uploaded.
+# Level 1 is the parquet crate's default and compresses poorly; 3 is zstd's
+# own default. Try 6 or 9 on a slow link.
+compression_level = 3
+
+# Rows per row group. Each upload worker buffers a whole row group in memory
+# before encoding it, so this multiplied by the worker count drives peak
+# memory. It also sets how finely file sizes and size targets can be tracked.
+row_group_rows = 200000
+
+dictionary = true

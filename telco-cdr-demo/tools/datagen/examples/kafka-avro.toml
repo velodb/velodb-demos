@@ -1,0 +1,30 @@
+# Avro to Kafka in the Confluent wire format: the schema is registered
+# under events-value and every message starts with 0x00 and the schema id.
+#
+#   datagen --config examples/kafka-avro.toml --time 10m
+
+[generation]
+spec = "spec.toml"
+schema_type = "avro"
+schema = "event.avsc"
+
+[threading]
+sink_threads = 2
+
+[sink]
+dest = "kafka"
+
+[kafka]
+brokers = "localhost:9092"
+topic = "events"
+key_field = "id"
+
+[kafka.schema_registry]
+url = "http://localhost:8081"
+subject = "events-value"       # the default: <topic>-value
+# A registry behind basic auth:
+# username = "registry-user"
+# password = "secret"
+
+[kafka.properties]
+"compression.type" = "lz4"

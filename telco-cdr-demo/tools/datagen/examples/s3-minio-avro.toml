@@ -1,0 +1,26 @@
+# Avro stream objects in MinIO (or any S3-compatible server): path-style
+# addressing, a plain-http endpoint, and credentials in the file.
+#
+#   datagen --config examples/s3-minio-avro.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "avro"
+schema = "event.avsc"
+rows = 1000000
+
+[sink]
+dest = "s3"
+
+[s3]
+bucket = "events"
+prefix = "avro/"
+endpoint = "http://localhost:9000"
+path_style = true
+allow_http = true
+file_size = "64MiB"
+files_per_folder = 0          # every object directly under the prefix
+
+[s3.credentials]
+access_key_id = "minioadmin"
+secret_access_key = "minioadmin"

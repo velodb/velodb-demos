@@ -1,0 +1,39 @@
+# A local directory with the same layout an S3 run would produce, so a load
+# can be rehearsed from disk before pointing at a bucket.
+#
+#   doris-parquet-s3-gen --config examples/dest-local.toml \
+#       --schema examples/all_types.sql --spec examples/all_types.spec
+#
+# Files land at
+#   ./test-output/all_types/rehearsal/batch-00001/part-w00-000001.parquet
+#   ./test-output/all_types/rehearsal/batch-00001/part-w01-000001.parquet
+#   ...
+#
+# Every layout option applies exactly as it does for S3; only [upload] is
+# ignored, since nothing is uploaded.
+
+[dest]
+type = "local"
+
+[local]
+# Relative to the working directory. ./test-output is gitignored.
+directory = "./test-output/all_types"
+
+[layout]
+run_id = "rehearsal"
+
+# Small files and folders make the batch structure visible in a short run.
+file_size = "64MiB"
+files_per_folder = 5
+
+[run]
+rows = 1000000
+# Four upload workers is plenty for a disk; the default 8 suits a network.
+upload_threads = 4
+
+[parquet]
+compression = "zstd"
+compression_level = 3
+# Smaller row groups so --file-size is honoured more tightly on a small run;
+# the S3 example keeps the larger default for throughput.
+row_group_rows = 50000

@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/finsim/">
+<title>Money Market Demo · Realtime Book</title>
+<script src="echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #111a2c; --panel-2: #16213a; --line: #223050; --line-2: #2b3a5c;
+    --text: #e6ecf7; --muted: #8b9bb8; --dim: #5d6c8a;
+    --accent: #4f8cff; --accent-2: #7cb3ff;
+    --up: #22c55e; --down: #ef4444; --amber: #f59e0b;
+    --buy: #22c55e; --sell: #ef4444;
+    --radius: 10px; --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); }
+  body { padding: 0 16px 24px; }
+  a { color: var(--accent-2); text-decoration: none; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--muted); } .dim { color: var(--dim); }
+  .amber { color: var(--amber); }
+
+  header { display: flex; align-items: center; gap: 18px; height: 56px; border-bottom: 1px solid var(--line); margin-bottom: 14px; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand b { font-size: 16px; letter-spacing: .2px; }
+  .brand span { color: var(--muted); }
+  .pills { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .pill b { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); display: inline-block; }
+  .dot.ok { background: var(--up); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+  .dot.warn { background: var(--amber); } .dot.bad { background: var(--down); }
+  .pill.error { border-color: rgba(245,158,11,.5); color: var(--amber); }
+
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-height: 92px; position: relative; overflow: hidden; }
+  .kpi .label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; display: flex; justify-content: space-between; }
+  .kpi .value { font-size: 24px; font-weight: 600; margin-top: 4px; letter-spacing: -.3px; }
+  .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 2px; display: flex; gap: 10px; align-items: center; }
+  .flash { animation: flash .6s ease-out; }
+  @keyframes flash { from { background: rgba(79,140,255,.18); } to { background: transparent; } }
+  .bullet { position: relative; height: 6px; background: var(--line-2); border-radius: 3px; flex: 1; }
+  .bullet .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
+  .bullet .target { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--text); }
+  .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .tag.live { color: var(--up); border-color: rgba(34,197,94,.4); }
+  button.tag.btn, a.tag.btn { cursor: pointer; text-decoration: none; background: transparent; color: var(--amber); border-color: rgba(245,158,11,.5); cursor: pointer; font: inherit; font-size: 10.5px; }
+  button.tag.btn:hover, a.tag.btn:hover { background: rgba(245,158,11,.12); }
+  .tag.mv { color: var(--accent-2); border-color: rgba(79,140,255,.4); }
+  .tag.amber { color: var(--amber); border-color: rgba(245,158,11,.5); }
+
+  .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
+  .panel h3 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; letter-spacing: .3px; color: var(--muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .panel h3 .right { margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--dim); }
+  .chart { width: 100%; flex: 1; min-height: 220px; }
+  .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; }
+  .span-6 { grid-column: span 6; } .span-7 { grid-column: span 7; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none; }
+  th.l, td.l { text-align: left; }
+  tbody tr:hover { background: var(--panel-2); }
+  tbody tr.clickable { cursor: pointer; }
+  .scroll { overflow: auto; flex: 1; min-height: 240px; max-height: 420px; }
+  .side { font-weight: 600; font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+  .side.BUY { color: var(--buy); background: rgba(34,197,94,.12); } .side.SELL { color: var(--sell); background: rgba(239,68,68,.12); }
+  tr.new { animation: rowin .5s ease-out; }
+  @keyframes rowin { from { background: rgba(79,140,255,.25); } to { background: transparent; } }
+  .sym { font-weight: 600; color: var(--text); }
+  .spark { vertical-align: middle; }
+  .bar { height: 6px; background: var(--line-2); border-radius: 3px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .kv { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 4px 14px; font-size: 12.5px; }
+  .kv > div { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .kv .h { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .kv .r { text-align: right; }
+  .empty { color: var(--dim); padding: 20px; text-align: center; }
+
+  /* drill-down */
+  #drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 96vw); background: var(--panel); border-left: 1px solid var(--line-2); box-shadow: -20px 0 60px rgba(0,0,0,.5); transform: translateX(105%); transition: transform .25s ease; z-index: 20; overflow: auto; padding: 16px 18px 40px; }
+  #drawer.open { transform: translateX(0); }
+  #drawer .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  #drawer .head h2 { margin: 0; font-size: 22px; }
+  #drawer .close { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 22px; line-height: 1; }
+  #drawer .bands { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0 10px; }
+  #drawer .bands .pill { font-family: var(--mono); }
+  #drawer pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 11.5px/1.5 var(--mono); overflow: auto; max-height: 320px; color: var(--muted); }
+  #drawer pre b { color: var(--text); }
+  #drawer .chart { min-height: 240px; }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 15; display: none; }
+  #overlay.open { display: block; }
+
+  @media (max-width: 1440px) { .kpis { grid-template-columns: repeat(3, 1fr); } .span-3, .span-4, .span-5, .span-6, .span-7, .span-8 { grid-column: span 6; } }
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, 1fr); } .span-3, .span-4, .span-5, .span-6, .span-7, .span-8 { grid-column: span 12; } header { height: auto; padding: 8px 0; flex-wrap: wrap; } }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; margin-left: 12px; }
+  .tab { padding: 6px 14px; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 600; letter-spacing: .2px; border: 1px solid transparent; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); background: var(--panel); border-color: var(--line-2); }
+  .strip { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; color: var(--muted); }
+  .strip b { color: var(--text); }
+  .pos { display: inline-block; width: 70px; height: 8px; background: var(--line-2); border-radius: 4px; position: relative; vertical-align: middle; }
+  .pos > i { position: absolute; top: -2px; width: 3px; height: 12px; border-radius: 2px; background: var(--accent-2); }
+  .pos > i.out { background: var(--amber); }
+  .pos > s { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--dim); }
+  .dirtag { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line-2); }
+  .dirtag.imp { border-color: rgba(245,158,11,.6); color: var(--amber); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>Money Market Demo</b><span>Realtime Book · Apache Doris on VeloDB Cloud</span></div>
+  <nav class="tabs"><span class="tab active" data-tab="book">Book</span><span class="tab" data-tab="prices">Prices</span></nav>
+  <div class="pills">
+    <span class="pill" id="pill-doris"><i class="dot" id="dot-doris"></i> Doris <b id="ingest-rate">–</b></span>
+    <span class="pill" id="pill-mv"><i class="dot" id="dot-mv"></i> MV <b id="mv-age">–</b></span>
+    <span class="pill" id="pill-macro" title="market.toml [macro]: multiplier applied to every quote"><span class="dim">Macro</span> <b id="macro-text" class="num">–</b></span>
+    <span class="pill" id="pill-config"><i class="dot" id="dot-config"></i> <span id="config-text">config</span></span>
+    <span class="pill"><span id="clock" class="num">--:--:--</span> UTC</span>
+  </div>
+</header>
+
+<div id="tab-book">
+<section class="kpis">
+  <div class="kpi" id="k-nav"><div class="label">NAV <span class="tag live">live</span></div><div class="value num" id="nav">–</div><div class="sub"><span id="nav-sub">since inception</span></div></div>
+  <div class="kpi" id="k-pnl"><div class="label">Net P&amp;L <span class="tag live">live</span></div><div class="value num" id="pnl">–</div><div class="sub"><span id="pnl-bps" class="num">–</span><span id="pnl-1m" class="num muted">–</span></div></div>
+  <div class="kpi" id="k-cash"><div class="label">Cash ratio <span><span class="tag live">live</span> <a class="tag btn" id="btn-admin" href="admin" title="top up or withdraw cash, forget past withdrawals">admin</a></span></div><div class="value num" id="cash-ratio">–</div><div class="sub"><div class="bullet"><div class="fill" id="cash-fill" style="width:0"></div><div class="target" id="cash-target" style="left:30%"></div></div><span id="cash-target-text" class="num">target 30%</span><span id="cash-paid" class="num muted"></span></div></div>
+  <div class="kpi" id="k-equity"><div class="label">Equity <span class="tag live">live</span></div><div class="value num" id="equity">–</div><div class="sub"><span id="equity-sub">–</span></div></div>
+  <div class="kpi" id="k-buy"><div class="label">Buy chance <span class="tag live">live</span></div><div class="value num" id="buy-chance">–</div><div class="sub"><span id="buy-sub">calibrates every 30s</span></div></div>
+  <div class="kpi" id="k-act"><div class="label">Activity <span class="tag live">live</span></div><div class="value num" id="trades-ps">–</div><div class="sub"><span id="act-sub">–</span></div></div>
+</section>
+
+<section class="grid">
+  <div class="panel span-8"><h3>Net P&amp;L and cash ratio <span class="tag live">live · 1s</span><span class="right" id="nav-window">last 15 min · markers = calibrations</span></h3><div class="chart" id="c-nav" style="min-height:300px"></div></div>
+  <div class="panel span-4"><h3>P&amp;L itemised <span class="tag mv">Doris MV</span><span class="right" id="pnl-mv-age"></span></h3><div class="chart" id="c-waterfall" style="min-height:300px"></div></div>
+
+  <div class="panel span-4"><h3>Book composition <span class="tag live">live</span></h3><div class="chart" id="c-donut"></div></div>
+  <div class="panel span-4"><h3>Top 10 holdings <span class="tag mv">Doris MV × live price</span><span class="right">green = in profit · red = at a loss</span></h3><div class="chart" id="c-top"></div></div>
+  <div class="panel span-4"><h3>Sector allocation <span class="tag mv">Doris MV</span></h3><div class="chart" id="c-sectors"></div></div>
+
+  <div class="panel span-5"><h3>Trade tape <span class="tag mv">Doris · trades</span><span class="right">last 50 · seed hidden</span></h3>
+    <div class="scroll"><table id="t-tape"><thead><tr><th class="l">Time</th><th class="l">Symbol</th><th class="l">Side</th><th>Qty</th><th>Price</th><th>Notional</th><th>Cost</th><th>Realised</th><th>Band</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="panel span-7"><h3>Positions <span class="tag mv">Doris MV</span><span class="right" id="pos-count">click a row for detail</span></h3>
+    <div class="scroll"><table id="t-pos"><thead><tr><th class="l" data-k="symbol">Symbol</th><th class="l" data-k="name">Name</th><th data-k="qty">Qty</th><th data-k="price">Price</th><th data-k="market_value">Value</th><th data-k="weight_pct">Weight</th><th data-k="unrealized_pnl">Unrealised</th><th data-k="realized_pnl">Realised</th><th data-k="trade_cost">Cost</th><th>5 min</th></tr></thead><tbody></tbody></table></div></div>
+
+  <div class="panel span-4"><h3>Worked blocks <span class="tag live">live</span><span class="right" id="block-settings">per-symbol lock</span></h3><div class="scroll" style="min-height:160px;max-height:300px"><table id="t-blocks"><thead><tr><th class="l">Symbol</th><th class="l">Side</th><th>Progress</th><th>Decision</th><th>Now</th><th>Shortfall</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="panel span-4"><h3>Doris MV vs live book</h3><div class="kv" id="mv-vs-live"></div><div class="dim" style="margin-top:8px" id="mv-list"></div></div>
+  <div class="panel span-4"><h3>Ingest · Stream Load <span class="right" id="ingest-settings"></span></h3><div class="scroll" style="min-height:160px;max-height:300px"><table id="t-ingest"><thead><tr><th class="l">Table</th><th>Rows/s</th><th>Loads</th><th>Avg ms</th><th>P99 ms</th><th>Errors</th></tr></thead><tbody></tbody></table></div><div class="dim" id="ingest-err"></div></div>
+</section>
+
+</div>
+
+<div id="tab-prices" hidden>
+  <div class="strip" id="px-strip"></div>
+  <section class="grid">
+    <div class="panel span-12"><h3>Market map <span class="tag live">live</span><span class="right">size = weight · colour = 5-minute change · amber border = block in progress (symbol locked) · click a tile for detail</span></h3><div class="chart" id="c-map" style="min-height:360px"></div></div>
+    <div class="panel span-12"><h3>Tickers <span class="tag live">live · 1s ticks</span><span class="right" id="px-count">click a row for detail · click a header to sort</span></h3>
+      <div class="scroll" style="max-height:none"><table id="t-px"><thead><tr><th class="l" data-k="symbol">Symbol</th><th class="l" data-k="name">Name</th><th class="l" data-k="sector">Sector</th><th data-k="price">Price</th><th data-k="chg1">Δ 1 min</th><th data-k="chg5">Δ 5 min</th><th class="l" data-k="dir">Trend</th><th class="l" data-k="real_pos">Real band</th><th class="l" data-k="perceived_pos">Perceived</th><th data-k="target_weight_pct" title="weight / Σweight">Target</th><th data-k="weight_pct" title="market value / equity">Actual</th><th data-k="deviation" title="dollars below (+) or above (−) target; buys pick among +, sells among −">vs target</th><th data-k="qty">Position</th><th data-k="market_value">Value</th><th data-k="unrealized_pnl">Unrealised</th><th>5 min</th></tr></thead><tbody></tbody></table></div></div>
+  </section>
+</div>
+
+<div id="overlay"></div>
+<aside id="drawer">
+  <div class="head"><h2 id="d-sym">–</h2><span id="d-name" class="muted"></span><span id="d-price" class="num" style="font-size:20px"></span><span id="d-dir"></span><span class="close" id="d-close">×</span></div>
+  <div class="bands" id="d-bands"></div>
+  <h3 class="muted" style="font-size:12px;text-transform:uppercase;margin:8px 0 4px">Price · real band shaded · perceived band dashed · trades</h3>
+  <div class="chart" id="d-chart-price"></div>
+  <h3 class="muted" style="font-size:12px;text-transform:uppercase;margin:12px 0 4px">Position over time <span class="tag mv">Doris MV · 1 min</span> <span class="dim" style="text-transform:none;margin-left:auto" id="d-pos-summary"></span></h3>
+  <div class="chart" id="d-pos" style="min-height:200px"></div>
+  <h3 class="muted" style="font-size:12px;text-transform:uppercase;margin:12px 0 4px">Recent trades</h3>
+  <div class="scroll" style="max-height:220px;min-height:80px"><table id="d-trades"><thead><tr><th class="l">Time</th><th class="l">Side</th><th>Qty</th><th>Price</th><th>Notional</th><th>Realised</th><th>Band</th><th>Block</th></tr></thead><tbody></tbody></table></div>
+  <h3 class="muted" style="font-size:12px;text-transform:uppercase;margin:12px 0 4px">Config · <span id="d-cfg-path" class="num" style="text-transform:none"></span> <span class="dim" style="text-transform:none">(edit and save: applies within a second)</span></h3>
+  <pre id="d-cfg"></pre>
+</aside>
+
+<script>
+// ---------- formatting ----------
+const N = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+const money = (v, d = 2) => {
+  v = N(v); if (isNaN(v)) return '–';
+  const a = Math.abs(v), s = v < 0 ? '-' : '';
+  if (a >= 1e12) return s + '$' + (a / 1e12).toFixed(d) + 'T';
+  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(d) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(d) + 'M';
+  if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(d) + 'K';
+  return s + '$' + a.toFixed(2);
+};
+const moneyFull = v => { v = N(v); return isNaN(v) ? '–' : (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+const signed = (v, f = money) => { v = N(v); return (v > 0 ? '+' : '') + f(v); };
+const pct = (v, d = 1) => { v = N(v); return isNaN(v) ? '–' : (v * 100).toFixed(d) + '%'; };
+const int = v => { v = N(v); return isNaN(v) ? '–' : v.toLocaleString('en-US'); };
+const px = v => { v = N(v); return isNaN(v) ? '–' : v.toFixed(2); };
+const cls = v => N(v) > 0 ? 'up' : N(v) < 0 ? 'down' : '';
+const bps = v => { v = N(v); return isNaN(v) ? '–' : (v >= 0 ? '+' : '') + v.toFixed(1) + ' bps'; };
+const tsMs = s => s ? Date.parse(s.replace(' ', 'T') + 'Z') : NaN;   // Doris strings are UTC
+const hhmmss = s => { const t = tsMs(s); return isNaN(t) ? '–' : new Date(t).toISOString().substr(11, 8); };
+const ago = ms => ms < 1000 ? 'now' : ms < 60000 ? Math.round(ms / 1000) + 's ago' : Math.round(ms / 60000) + 'm ago';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const bandTag = p => { p = N(p); if (isNaN(p)) return ''; const c = p < 0.5 ? 'up' : 'down'; return `<span class="num ${c}">${(p * 100).toFixed(0)}%</span>`; };
+const BASE_PATH = '/finsim';
+async function get(url) { const target = BASE_PATH + url; const r = await fetch(target); if (!r.ok) throw new Error(target + ' ' + r.status); return r.json(); }
+function setText(id, text, flash) { const el = document.getElementById(id); if (!el) return; if (el.textContent !== text) { el.textContent = text; if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } } }
+function sparkline(vals, w = 90, h = 22) {
+  if (!vals || vals.length < 2) return '';
+  const min = Math.min(...vals), max = Math.max(...vals), r = max - min || 1;
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1) * w).toFixed(1)},${(h - 2 - (v - min) / r * (h - 4)).toFixed(1)}`).join(' ');
+  const color = vals[vals.length - 1] >= vals[0] ? '#22c55e' : '#ef4444';
+  return `<svg class="spark" width="${w}" height="${h}"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+
+// ---------- charts ----------
+const theme = { textStyle: { color: '#8b9bb8', fontFamily: 'inherit' }, backgroundColor: 'transparent' };
+const axisBase = { axisLine: { lineStyle: { color: '#2b3a5c' } }, axisLabel: { color: '#8b9bb8' }, splitLine: { lineStyle: { color: '#1d2a47' } } };
+const charts = {};
+function chart(id) { if (!charts[id]) { charts[id] = echarts.init(document.getElementById(id), null, { renderer: 'canvas' }); charts[id].setOption(theme); } return charts[id]; }
+window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
+const SECTOR_COLORS = ['#4f8cff', '#22c55e', '#f59e0b', '#a78bfa', '#38bdf8', '#f472b6', '#facc15', '#34d399', '#fb923c', '#93c5fd', '#e879f9'];
+
+// ---------- state ----------
+const state = { live: null, pnl: null, positions: [], stocks: {}, tapeIds: new Set(), pnlHistory: [], target: 0.3, mvAgeMs: NaN, sortKey: 'market_value', sortDir: -1, drawer: null };
+
+// ---------- live (memory) ----------
+async function pollLive() {
+  const { live, sink } = await get('/api/live');
+  state.live = live; state.target = live.target_cash_ratio;
+  const pnl = N(live.pnl), nav = N(live.nav), start = N(live.starting_cash);
+  setText('nav', money(nav, 3), true);
+  setText('nav-sub', `started at ${money(start, 0)} · ${live.position_count} positions · ${live.stock_count} stocks`);
+  const pe = document.getElementById('pnl'); pe.className = 'value num ' + cls(pnl); setText('pnl', signed(pnl, v => money(v, 2)), true);
+  const pb = document.getElementById('pnl-bps'); pb.className = 'num ' + cls(pnl); setText('pnl-bps', bps(pnl / start * 1e4));
+  state.pnlHistory.push([Date.now(), pnl]); while (state.pnlHistory.length && state.pnlHistory[0][0] < Date.now() - 65000) state.pnlHistory.shift();
+  if (state.pnlHistory.length > 5) { const d = pnl - state.pnlHistory[0][1]; const e = document.getElementById('pnl-1m'); e.className = 'num ' + cls(d); setText('pnl-1m', signed(d) + ' / 1 min'); }
+  setText('cash-ratio', pct(live.cash_ratio), true);
+  document.getElementById('cash-ratio').className = 'value num ' + (live.buys_blocked ? 'down' : '');
+  // paid_out is net of top-ups and excludes what the admin page has forgotten
+  { const po = N(live.paid_out); const last = (live.cashouts || []).slice(-1)[0]; const lastTxt = last ? ` (last ${N(last.amount) < 0 ? 'top-up' : 'withdrawal'} ${money(Math.abs(N(last.amount)), 2)} at ${new Date(last.ts).toISOString().substr(11, 8)})` : ''; setText('cash-paid', po > 0 ? ` · paid out ${money(po, 2)}${lastTxt}` : po < 0 ? ` · topped up ${money(-po, 2)}${lastTxt}` : ''); }
+  document.getElementById('cash-fill').style.width = (Math.max(0, Math.min(1, live.cash_ratio)) * 100).toFixed(1) + '%';
+  document.getElementById('cash-target').style.left = (live.target_cash_ratio * 100).toFixed(1) + '%';
+  setText('cash-target-text', live.buys_blocked ? `cash ${money(live.cash, 1)} · buys blocked until cash is positive` : `target ${pct(live.target_cash_ratio, 0)} · cash ${money(live.cash, 1)}`);
+  setText('equity', money(live.equity, 3), true);
+  setText('equity-sub', `${pct(1 - live.cash_ratio)} of NAV · realised ${signed(N(live.realized_pnl_total) - (N(live.paid_out_forgotten) || 0))} · costs ${money(live.trade_cost_total)}`);
+  setText('buy-chance', pct(live.buy_chance, 0), true);
+  if (live.last_calibration) { const c = live.last_calibration; const d = c.buy_chance_after - c.buy_chance_before; setText('buy-sub', `${hhmmss(c.ts)} · cash ${pct(c.cash_ratio)} vs ${pct(c.target_cash_ratio, 0)} → ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(0)} pts · optimal ${pct(live.optimal_trade_chance, 0)} (NAV ${live.nav_regime})`); }
+  else setText('buy-sub', `optimal trade chance ${pct(live.optimal_trade_chance, 0)} (NAV ${live.nav_regime})`);
+  const r = live.rates; setText('trades-ps', r.trades_per_sec.toFixed(0) + ' trades/s', false);
+  setText('act-sub', `incl. block slices · ${r.ticks_per_sec.toFixed(0)} ticks/s · ${live.active_blocks.length} symbol locks · ${int(r.trades_total)} trades`);
+  // ingest pill + table
+  const total = Object.values(sink.tables).reduce((a, t) => a + t.records_per_sec, 0);
+  setText('ingest-rate', `${total.toFixed(0)} rows/s`);
+  const dd = document.getElementById('dot-doris'); dd.className = 'dot ' + (sink.errors > 0 ? 'warn' : total > 0 ? 'ok' : '');
+  const s = sink.settings; setText('ingest-settings', `${s.format} · ${s.upload_workers} workers · ${s.linger_ms}ms linger · ${(s.batch_bytes / 1048576).toFixed(0)} MiB`);
+  const tb = document.querySelector('#t-ingest tbody');
+  tb.innerHTML = Object.entries(sink.tables).sort().map(([t, v]) => `<tr><td class="l">${t}</td><td class="num">${v.records_per_sec.toFixed(1)}</td><td class="num">${int(v.loads)}</td><td class="num">${v.avg_load_ms.toFixed(0)}</td><td class="num">${v.p99_load_ms.toFixed(0)}</td><td class="num ${v.error_loads ? 'down' : ''}">${v.error_loads}</td></tr>`).join('');
+  setText('ingest-err', sink.last_error ? 'last error: ' + sink.last_error : '');
+  // macro pill
+  const m = live.macro;
+  if (m) {
+    const arrow = m.dir > 0 ? '▲' : '▼';
+    const state = m.pinned ? ` · pinned ${m.target.toFixed(4)}` : (m.target ? ` · walking to ${m.target.toFixed(4)}` : ` · ${m.min.toFixed(3)}–${m.max.toFixed(3)}`);
+    setText('macro-text', `×${m.multiplier.toFixed(4)} ${arrow}${state}`);
+    const el = document.getElementById('macro-text'); el.className = 'num ' + (m.multiplier > 1.0005 ? 'up' : m.multiplier < 0.9995 ? 'down' : '');
+  }
+  // config pill
+  const st = live.status, errs = Object.entries(st.errors || {});
+  const cp = document.getElementById('pill-config'), cd = document.getElementById('dot-config');
+  if (errs.length) { cp.classList.add('error'); cd.className = 'dot bad'; setText('config-text', `config error · ${errs[0][0].split('/').pop()}: ${errs[0][1].slice(0, 80)}`); }
+  else { cp.classList.remove('error'); cd.className = 'dot ok'; const t = tsMs(st.last_reload_at?.replace('T', ' ').replace('Z', '')); setText('config-text', st.last_reload_file ? `reloaded ${st.last_reload_file} · ${ago(Date.now() - Date.parse(st.last_reload_at))}` : (st.resumed ? 'resumed from Doris' : st.seeded ? 'fresh start · seeded' : 'config loaded')); }
+  renderDonut(live); renderBlocks(live.active_blocks, live.strategy?.Blocks, live.extreme_events || [], live.strategy?.Extreme || {}); renderMvVsLive();
+}
+
+function renderDonut(live) {
+  const c = chart('c-donut'), cash = N(live.cash), eq = N(live.equity), t = live.target_cash_ratio;
+  c.setOption({
+    tooltip: { trigger: 'item', formatter: p => `${p.name}<br><b>${money(p.value, 2)}</b> · ${p.percent}%` },
+    series: [
+      { type: 'pie', radius: ['58%', '78%'], center: ['50%', '52%'], avoidLabelOverlap: false, itemStyle: { borderColor: '#111a2c', borderWidth: 2 },
+        label: { show: true, position: 'center', formatter: () => `{a|${pct(live.cash_ratio)}}\n{b|cash}`, rich: { a: { fontSize: 22, fontWeight: 600, color: '#e6ecf7', fontFamily: 'monospace' }, b: { fontSize: 11, color: '#8b9bb8' } } },
+        data: [{ name: 'Cash', value: Math.max(0, cash), itemStyle: { color: '#4f8cff' } }, { name: 'Equity', value: eq, itemStyle: { color: '#22c55e' } }] }, // a pie cannot draw negative cash; the centre label still shows it
+      { type: 'pie', radius: ['82%', '85%'], center: ['50%', '52%'], silent: true, label: { show: false }, itemStyle: { borderWidth: 0 },
+        data: [{ value: t, name: 'target cash', itemStyle: { color: '#7cb3ff' } }, { value: 1 - t, name: '', itemStyle: { color: '#223050' } }] }
+    ],
+    graphic: [{ type: 'text', left: 'center', bottom: 4, style: { text: `outer ring = ${pct(t, 0)} cash target`, fill: '#5d6c8a', fontSize: 11 } }]
+  });
+}
+
+function renderBlocks(active, cfg = {}, events = [], xcfg = {}) {
+  const tb = document.querySelector('#t-blocks tbody');
+  const slices = cfg.BlockTradeSlices ?? '–', interval = cfg.BlockTradeSliceIntervalSeconds ?? '–';
+  const flags = [xcfg.SellAllAtHigh ? `dump ≥${((xcfg.SellAllBandPosition ?? 0.95) * 100).toFixed(0)}%` : '', xcfg.SuckAllAtLow ? `suck ≤${((xcfg.SuckAllBandPosition ?? 0.05) * 100).toFixed(0)}%` : ''].filter(Boolean).join(' · ');
+  setText('block-settings', `per-symbol lock · ${slices} × ${interval}s${flags ? ' · ' + flags : ''}`);
+  const extremeIds = new Set(events.map(e => e.block_id));
+  const XTAGBY = Object.fromEntries(events.map(e => [e.block_id, { sell_all_at_high: 'DUMP', suck_all_at_low: 'SUCK', panic_sell_at_low: 'PANIC', fomo_buy_at_high: 'FOMO' }[e.kind]]));
+  let html = active.map(b => { const x = extremeIds.has(b.id); return `<tr class="clickable" data-sym="${b.symbol}"><td class="l sym">${b.symbol} <span class="tag ${x ? 'amber' : ''}">${x ? (XTAGBY[b.id] || (b.side === 'SELL' ? 'DUMP' : 'SUCK')) : 'locked'}</span></td><td class="l"><span class="side ${b.side}">${b.side}</span></td>
+    <td><div class="bar" style="width:90px"><i style="width:${(b.slices_done / b.slices_total * 100).toFixed(0)}%"></i></div><span class="dim num">${b.slices_done}/${b.slices_total} · ${money(b.planned_notional, 1)}</span></td>
+    <td class="num">${px(b.decision_price)}</td><td class="num">${px(b.current_price)}</td><td class="num ${b.shortfall_bps > 0 ? 'down' : 'up'}">${b.filled_qty ? bps(b.shortfall_bps) : '–'}</td></tr>`; }).join('');
+  if (!active.length) html = `<tr><td colspan="6" class="empty">no block in progress · blocks use ${slices} tranches, ${interval} s apart · only their selected symbol is locked</td></tr>`;
+  const recent = [...events].reverse().slice(0, 8);
+  const XTAG = { sell_all_at_high: 'DUMP', suck_all_at_low: 'SUCK', panic_sell_at_low: 'PANIC', fomo_buy_at_high: 'FOMO' };
+  const xside = k => (k === 'sell_all_at_high' || k === 'panic_sell_at_low') ? 'SELL' : 'BUY';
+  if (recent.length) html += `<tr><td colspan="6" class="dim" style="text-align:left;padding-top:10px">all-in orders at band extremes (latest first)</td></tr>` + recent.map(e => `<tr class="clickable" data-sym="${e.symbol}"><td class="l sym">${e.symbol} <span class="tag amber">${XTAG[e.kind] || e.kind}</span></td><td class="l"><span class="side ${xside(e.kind)}">${xside(e.kind)}</span></td><td class="num dim">${new Date(e.ts).toISOString().substr(11, 8)}</td><td class="num">${int(e.qty)}</td><td class="num">${money(e.notional, 1)}</td><td class="num dim">band ${(e.band_pos * 100).toFixed(0)}% · cash ${(e.cash_ratio * 100).toFixed(0)}%</td></tr>`).join('');
+  tb.innerHTML = html;
+}
+
+function renderMvVsLive() {
+  const l = state.live, p = state.pnl, el = document.getElementById('mv-vs-live');
+  if (!l) return;
+  const row = (name, mv, live, fmt) => { const d = (mv !== undefined && live !== undefined) ? N(live) - N(mv) : NaN; return `<div class="h">${name}</div><div class="r num">${mv === undefined ? '–' : fmt(mv)}</div><div class="r num">${fmt(live)}</div><div class="r num dim">${isNaN(d) ? '' : signed(d, fmt)}</div>`; };
+  el.innerHTML = `<div class="h"></div><div class="r h">Doris MV</div><div class="r h">Live</div><div class="r h">Δ live − MV</div>` +
+    row('NAV', p?.nav, l.nav, v => money(v, 3)) + row('Net P&L', p?.net_pnl, l.pnl, v => money(v, 2)) + row('Cash', p?.cash, l.cash, v => money(v, 3)) +
+    row('Equity', p?.equity, l.equity, v => money(v, 3)) + row('Positions', p?.positions, l.position_count, int) + row('Trades', p?.trades, l.rates.trades_total, int);
+}
+
+// ---------- Doris-backed ----------
+async function pollPnl() {
+  const p = await get('/api/pnl'); state.pnl = p; if (!p) return;
+  renderMvVsLive();
+  const c = chart('c-waterfall');
+  // Withdrawals forgotten on the admin page are netted out of realised P&L, so the bars
+  // stay on the same scale as net P&L instead of showing trillions that were written off.
+  const forgotten = N(p.paid_out_forgotten) || 0;
+  const realized = N(p.realized_pnl) - forgotten, unreal = N(p.unrealized_pnl), cost = -N(p.trade_cost), net = N(p.net_pnl);
+  // waterfall: invisible base + visible bars
+  const steps = [['Realised', realized], ['Unrealised', unreal], ['Trade cost', cost]];
+  let run = 0; const base = [], vis = [], colors = [];
+  for (const [, v] of steps) { const from = run, to = run + v; base.push(Math.min(from, to)); vis.push(Math.abs(v)); colors.push(v >= 0 ? '#22c55e' : '#ef4444'); run = to; }
+  base.push(Math.min(0, net)); vis.push(Math.abs(net)); colors.push(net >= 0 ? '#4f8cff' : '#ef4444');
+  const vals = [...steps.map(s => s[1]), net];
+  c.setOption({
+    grid: { left: 10, right: 10, top: 30, bottom: 10, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => `${ps[0].axisValue}<br><b>${signed(vals[ps[0].dataIndex], moneyFull)}</b>` },
+    xAxis: { type: 'category', data: [forgotten ? 'Realised\n(net of forgotten\ncash moves)' : 'Realised', 'Unrealised', 'Trade cost', 'Net P&L'], ...axisBase, axisLabel: { color: '#8b9bb8', interval: 0, lineHeight: 14 } },
+    yAxis: { type: 'value', ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => money(v, 1) } },
+    series: [
+      { type: 'bar', stack: 'w', data: base, itemStyle: { color: 'transparent' }, emphasis: { itemStyle: { color: 'transparent' } }, tooltip: { show: false }, silent: true },
+      { type: 'bar', stack: 'w', data: vis.map((v, i) => ({ value: v, itemStyle: { color: colors[i], borderRadius: 3 } })), barWidth: '55%',
+        label: { show: true, position: 'top', color: '#e6ecf7', fontFamily: 'monospace', formatter: p => signed(vals[p.dataIndex], v => money(v, 1)) } }
+    ]
+  });
+  setText('pnl-mv-age', p.last_trade ? `MV as of ${hhmmss(p.last_trade)} · ${int(p.trades)} trades` : '');
+}
+
+async function pollPositions() {
+  const [positions, sectors, stocks] = await Promise.all([get('/api/positions?limit=300'), get('/api/sectors'), get('/api/stocks?history=60')]);
+  state.positions = positions; state.stocks = Object.fromEntries(stocks.map(s => [s.symbol, s]));
+  const totalMV = positions.reduce((a, p) => a + N(p.market_value), 0);
+  positions.forEach(p => { p.weight_pct = N(p.market_value) / totalMV; const ls = state.stocks[p.symbol]; if (ls) { p.price = ls.price; p.market_value = N(ls.price) * N(p.qty); p.weight_pct = p.market_value / totalMV; } });
+  renderTop(positions.slice(0, 10)); renderSectors(sectors); renderPositions();
+}
+
+function renderTop(top) {
+  const c = chart('c-top'); const rows = [...top].reverse();
+  c.setOption({
+    grid: { left: 10, right: 60, top: 6, bottom: 6, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => { const p = top[top.length - 1 - ps[0].dataIndex]; return `<b>${p.symbol}</b> ${esc(p.name)}<br>${moneyFull(p.market_value)} · ${pct(p.weight_pct)} of equity<br>P&L ${signed(p.gross_pnl, moneyFull)} · ${int(p.qty)} sh`; } },
+    xAxis: { type: 'value', ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => money(v, 0) }, splitLine: { lineStyle: { color: '#1d2a47' } } },
+    yAxis: { type: 'category', data: rows.map(p => p.symbol), ...axisBase, axisLabel: { color: '#e6ecf7', fontFamily: 'monospace', fontWeight: 600 }, axisTick: { show: false } },
+    series: [{ type: 'bar', data: rows.map(p => ({ value: N(p.market_value), itemStyle: { color: N(p.gross_pnl) >= 0 ? '#22c55e' : '#ef4444', borderRadius: [0, 3, 3, 0] } })), barWidth: '62%',
+      label: { show: true, position: 'right', color: '#8b9bb8', fontFamily: 'monospace', formatter: p => money(p.value, 1) } }]
+  });
+  c.off('click'); c.on('click', p => openDrawer(rows[p.dataIndex].symbol));
+}
+
+function renderSectors(sectors) {
+  const c = chart('c-sectors');
+  const data = sectors.map((s, i) => ({ name: s.sector, value: N(s.market_value), pnl: N(s.gross_pnl), positions: N(s.positions), itemStyle: { color: SECTOR_COLORS[i % SECTOR_COLORS.length] } }));
+  const total = data.reduce((a, d) => a + d.value, 0);
+  c.setOption({
+    tooltip: { formatter: p => `<b>${p.name}</b><br>${money(p.value, 2)} · ${(p.value / total * 100).toFixed(1)}%<br>P&L ${signed(p.data.pnl)} · ${p.data.positions} positions` },
+    series: [{ type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false }, left: 0, right: 0, top: 0, bottom: 0, itemStyle: { borderColor: '#111a2c', borderWidth: 2, gapWidth: 2 },
+      label: { formatter: p => `${p.name}\n${(p.value / total * 100).toFixed(1)}%`, color: '#0b1220', fontWeight: 600, fontSize: 12 }, data }]
+  });
+}
+
+function renderPositions() {
+  const k = state.sortKey, d = state.sortDir;
+  const rows = [...state.positions].sort((a, b) => { const x = a[k], y = b[k]; const nx = N(x), ny = N(y); if (!isNaN(nx) && !isNaN(ny)) return (nx - ny) * d; return String(x).localeCompare(String(y)) * d; });
+  document.querySelector('#t-pos tbody').innerHTML = rows.map(p => { const ls = state.stocks[p.symbol];
+    return `<tr class="clickable" data-sym="${p.symbol}"><td class="l sym">${p.symbol}</td><td class="l muted">${esc(p.name)}</td><td class="num">${int(p.qty)}</td><td class="num">${px(p.price)}</td><td class="num">${money(p.market_value, 2)}</td><td class="num">${pct(p.weight_pct)}</td>
+      <td class="num ${cls(p.unrealized_pnl)}">${signed(p.unrealized_pnl)}</td><td class="num ${cls(p.realized_pnl)}">${signed(p.realized_pnl)}</td><td class="num muted">${money(p.trade_cost)}</td><td>${sparkline(ls?.history)}</td></tr>`; }).join('');
+  setText('pos-count', `${rows.length} positions · click a row for detail`);
+}
+document.querySelectorAll('#t-pos th[data-k]').forEach(th => th.addEventListener('click', () => { const k = th.dataset.k; if (state.sortKey === k) state.sortDir *= -1; else { state.sortKey = k; state.sortDir = -1; } renderPositions(); }));
+
+async function pollNav() {
+  const { snapshots, calibrations } = await get('/api/nav?minutes=15');
+  const c = chart('c-nav');
+  const pnl = snapshots.map(s => [tsMs(s.ts), N(s.pnl)]);
+  const ratio = snapshots.map(s => [tsMs(s.ts), N(s.cash_ratio) * 100]);
+  const cal = calibrations.map(x => ({ value: [tsMs(x.ts), N(x.cash_ratio) * 100], after: N(x.buy_chance_after), before: N(x.buy_chance_before) }));
+  const t = state.target * 100;
+  c.setOption({
+    grid: { left: 10, right: 10, top: 28, bottom: 8, containLabel: true },
+    legend: { top: 0, right: 0, textStyle: { color: '#8b9bb8' }, data: ['Net P&L', 'Cash ratio', 'Calibration'] },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross', label: { backgroundColor: '#223050' } }, formatter: ps => { const t = new Date(ps[0].value[0]).toISOString().substr(11, 8); return `${t} UTC<br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${p.seriesName === 'Net P&L' ? signed(p.value[1], moneyFull) : p.value[1].toFixed(2) + '%'}</b>` + (p.data.after !== undefined ? ` · buy chance ${(p.data.before * 100).toFixed(0)} → ${(p.data.after * 100).toFixed(0)}%` : '')).join('<br>'); } },
+    xAxis: { type: 'time', ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => new Date(v).toISOString().substr(11, 8) }, splitLine: { show: false } },
+    yAxis: [
+      { type: 'value', name: 'P&L', scale: true, ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => money(v, 0) } },
+      { type: 'value', name: 'cash %', min: v => Math.floor(Math.min(v.min, t) - 1), max: v => Math.ceil(Math.max(v.max, t) + 1), ...axisBase, splitLine: { show: false }, axisLabel: { color: '#8b9bb8', formatter: v => v.toFixed(0) + '%' } }
+    ],
+    series: [
+      { name: 'Net P&L', type: 'line', showSymbol: false, data: pnl, lineStyle: { width: 2, color: '#4f8cff' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(79,140,255,.35)' }, { offset: 1, color: 'rgba(79,140,255,0)' }] } }, markLine: { silent: true, symbol: 'none', lineStyle: { color: '#5d6c8a', type: 'dashed' }, data: [{ yAxis: 0 }], label: { show: false } } },
+      { name: 'Cash ratio', type: 'line', yAxisIndex: 1, showSymbol: false, data: ratio, lineStyle: { width: 1.5, color: '#f59e0b' }, markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b', type: 'dotted' }, data: [{ yAxis: t }], label: { formatter: 'target', color: '#f59e0b', position: 'insideEndTop' } } },
+      { name: 'Calibration', type: 'scatter', yAxisIndex: 1, data: cal, symbolSize: 8, itemStyle: { color: '#f59e0b', borderColor: '#0b1220', borderWidth: 1 } }
+    ]
+  });
+}
+
+async function pollTape() {
+  const rows = await get('/api/tape?limit=50');
+  const tb = document.querySelector('#t-tape tbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">waiting for trades to land in Doris…</td></tr>'; return; }
+  const first = state.tapeIds.size === 0;
+  tb.innerHTML = rows.map(r => `<tr class="clickable ${!first && !state.tapeIds.has(r.trade_id) ? 'new' : ''}" data-sym="${r.symbol}"><td class="l num dim">${hhmmss(r.ts)}</td><td class="l sym">${r.symbol}</td><td class="l"><span class="side ${r.side}">${r.side}</span>${r.block_id ? `<span class="dim"> #${r.slice_no}</span>` : ''}</td><td class="num">${int(r.qty)}</td><td class="num">${px(r.price)}</td><td class="num">${money(r.notional, 1)}</td><td class="num muted">${money(r.trade_cost)}</td><td class="num ${cls(r.realized_pnl)}">${r.side === 'SELL' ? signed(r.realized_pnl) : ''}</td><td>${bandTag(r.perceived_pos)}</td></tr>`).join('');
+  state.tapeIds = new Set(rows.map(r => r.trade_id));
+}
+
+async function pollMV() {
+  const { views, doris_now } = await get('/api/mv');
+  const now = tsMs(doris_now);
+  let oldest = 0; const parts = [];
+  for (const v of views) {
+    const fin = tsMs(v.FinishTime); const age = isNaN(fin) ? NaN : now - fin;
+    if (v.Status === 'SUCCESS' && !isNaN(age)) oldest = Math.max(oldest, age);
+    parts.push(`${v.MvName}: ${v.Status === 'SUCCESS' ? ago(age) : v.Status.toLowerCase()}${v.DurationMs ? ' · ' + v.DurationMs + 'ms' : ''}`);
+  }
+  state.mvAgeMs = views.length ? oldest : NaN;
+  setText('mv-age', views.length ? `refreshed ${ago(oldest)}` : 'no refresh yet');
+  document.getElementById('dot-mv').className = 'dot ' + (views.some(v => v.Status === 'FAILED') ? 'bad' : oldest < 90000 ? 'ok' : 'warn');
+  setText('mv-list', 'Async MVs, REFRESH EVERY 1 MINUTE · ' + parts.join(' · '));
+}
+
+// ---------- drill-down ----------
+async function openDrawer(sym) {
+  state.drawer = sym;
+  document.getElementById('drawer').classList.add('open'); document.getElementById('overlay').classList.add('open');
+  await refreshDrawer();
+}
+
+function closeDrawer() { state.drawer = null; document.getElementById('drawer').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('d-close').onclick = closeDrawer; document.getElementById('overlay').onclick = closeDrawer;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+document.addEventListener('click', e => { const tr = e.target.closest('tr.clickable'); if (tr?.dataset.sym) openDrawer(tr.dataset.sym); });
+
+async function refreshDrawer() {
+  const sym = state.drawer; if (!sym) return;
+  const d = await get('/api/symbol/' + sym + '?minutes=30'); if (state.drawer !== sym) return;
+  const l = d.live || {};
+  setText('d-sym', sym); setText('d-name', `${l.name || ''} · ${l.sector || ''} · weight ${l.weight ?? '–'}`);
+  setText('d-price', px(l.price)); const de = document.getElementById('d-dir'); de.textContent = (l.dir > 0 ? '▲' : '▼') + (l.locked ? ' block locked' : ''); de.className = l.dir > 0 ? 'up' : 'down';
+  const pos = d.position;
+  document.getElementById('d-bands').innerHTML = [
+    `<span class="pill">real ${px(l.real_min)} – ${px(l.real_max)} <b>${pct(l.real_pos, 0)}</b></span>`,
+    `<span class="pill">perceived ${px(l.perceived_min)} – ${px(l.perceived_max)} <b>${pct(l.perceived_pos, 0)}</b>${l.perceived_is_real ? ' <span class="dim">= real</span>' : ' <span class="amber">≠ real</span>'}</span>`,
+    `<span class="pill">trend ${l.trend_step_percent}% · noise ±${l.noise_percent}% · flip ${(l.direction_flip_chance * 100).toFixed(0)}%</span>`,
+    pos ? `<span class="pill">position <b>${int(pos.qty)}</b> sh · ${money(N(pos.qty) * N(l.price), 2)} · unrealised <b class="${cls(pos.unrealized_pnl)}">${signed(pos.unrealized_pnl)}</b> · realised <b class="${cls(pos.realized_pnl)}">${signed(pos.realized_pnl)}</b></span>` : `<span class="pill">no position</span>`,
+    l.qty ? `<span class="pill">live qty <b>${int(l.qty)}</b> · avg cost ${px(l.avg_cost)}</span>` : ''
+  ].join('');
+  // price chart
+  const c = chart('d-chart-price');
+  const prices = d.prices.map(p => [tsMs(p.ts), N(p.price)]);
+  const buys = d.trades.filter(t => t.side === 'BUY' && t.is_seed !== '1').map(t => [tsMs(t.ts), N(t.price), N(t.qty)]);
+  const sells = d.trades.filter(t => t.side === 'SELL').map(t => [tsMs(t.ts), N(t.price), N(t.qty)]);
+  const lo = Math.min(l.real_min ?? Infinity, l.perceived_min ?? Infinity, ...prices.map(p => p[1])), hi = Math.max(l.real_max ?? -Infinity, l.perceived_max ?? -Infinity, ...prices.map(p => p[1]));
+  c.setOption({
+    grid: { left: 10, right: 16, top: 24, bottom: 8, containLabel: true },
+    legend: { top: 0, right: 0, textStyle: { color: '#8b9bb8' } },
+    tooltip: { trigger: 'axis', formatter: ps => { const t = new Date(ps[0].value[0]).toISOString().substr(11, 8); return `${t} UTC<br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${px(p.value[1])}</b>${p.value[2] ? ' × ' + int(p.value[2]) : ''}`).join('<br>'); } },
+    xAxis: { type: 'time', ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => new Date(v).toISOString().substr(11, 5) }, splitLine: { show: false } },
+    yAxis: { type: 'value', min: Math.floor(lo * 0.995), max: Math.ceil(hi * 1.005), ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => v.toFixed(0) } },
+    series: [
+      { name: 'Price', type: 'line', showSymbol: false, data: prices, lineStyle: { width: 1.5, color: '#7cb3ff' }, z: 3,
+        markArea: { silent: true, itemStyle: { color: 'rgba(79,140,255,.10)' }, data: [[{ yAxis: l.real_min, name: 'real band' }, { yAxis: l.real_max }]] },
+        markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b', type: 'dashed' }, label: { color: '#f59e0b', position: 'insideEndTop', formatter: p => p.name }, data: [{ yAxis: l.perceived_min, name: 'perceived min' }, { yAxis: l.perceived_max, name: 'perceived max' }, { yAxis: (l.perceived_min + l.perceived_max) / 2, name: 'buy below / sell above', lineStyle: { color: '#8b9bb8', type: 'dotted' } }] } },
+      { name: 'Buy', type: 'scatter', data: buys, symbol: 'triangle', symbolSize: 9, itemStyle: { color: '#22c55e' }, z: 5 },
+      { name: 'Sell', type: 'scatter', data: sells, symbol: 'triangle', symbolRotate: 180, symbolSize: 9, itemStyle: { color: '#ef4444' }, z: 5 }
+    ]
+  });
+  // position history
+  const pc = chart('d-pos');
+  const h = d.position_history;
+  pc.setOption({
+    grid: { left: 10, right: 10, top: 24, bottom: 8, containLabel: true },
+    legend: { top: 0, right: 0, textStyle: { color: '#8b9bb8' } },
+    tooltip: { trigger: 'axis', formatter: ps => `${hhmmss(ps[0].axisValue)} UTC<br>` + ps.map(p => `${p.marker} ${p.seriesName}: <b>${p.seriesName === 'Shares held' ? int(p.value) : p.seriesName === 'Avg price' ? px(p.value) : money(p.value, 2)}</b>`).join('<br>') },
+    xAxis: { type: 'category', data: h.map(r => r.minute), ...axisBase, axisLabel: { color: '#8b9bb8', formatter: v => v.substr(11, 5) } },
+    yAxis: [
+      { type: 'value', name: 'shares held (left)', nameTextStyle: { color: '#7cb3ff' }, scale: true, ...axisBase, axisLabel: { color: '#7cb3ff', formatter: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v } },
+      { type: 'value', name: 'value / price (right)', nameTextStyle: { color: '#8b9bb8' }, scale: true, ...axisBase, splitLine: { show: false }, axisLabel: { color: '#8b9bb8', formatter: v => money(v, 1) } }
+    ],
+    series: [
+      { name: 'Shares held', type: 'line', step: 'end', showSymbol: false, data: h.map(r => N(r.qty)), lineStyle: { color: '#7cb3ff', width: 2.5 }, areaStyle: { color: 'rgba(124,179,255,.12)' }, z: 3 },
+      { name: 'Market value', type: 'line', yAxisIndex: 1, showSymbol: false, data: h.map(r => N(r.market_value)), lineStyle: { color: '#22c55e', width: 1.5, type: 'dashed' } }
+    ]
+  });
+  // headline for the chart: what moved, shares or price?
+  if (h.length > 1) { const a = h[0], b = h[h.length - 1]; const dq = (N(b.qty) - N(a.qty)) / N(a.qty), dp = (N(b.avg_price) - N(a.avg_price)) / N(a.avg_price); setText('d-pos-summary', `since ${hhmmss(a.minute)}: shares ${(dq * 100).toFixed(2)}% · avg price ${(dp * 100).toFixed(2)}% · value ${signed(N(b.market_value) - N(a.market_value), v => money(v, 2))}`); }
+  document.querySelector('#d-trades tbody').innerHTML = d.trades.slice(0, 60).map(t => `<tr><td class="l num dim">${hhmmss(t.ts)}${t.is_seed === '1' ? ' <span class="dim">seed</span>' : ''}</td><td class="l"><span class="side ${t.side}">${t.side}</span></td><td class="num">${int(t.qty)}</td><td class="num">${px(t.price)}</td><td class="num">${money(t.notional, 1)}</td><td class="num ${cls(t.realized_pnl)}">${t.side === 'SELL' ? signed(t.realized_pnl) : ''}</td><td>${bandTag(t.perceived_pos)}</td><td class="num dim">${t.block_id ? '#' + t.block_id + '/' + t.slice_no : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">no trades in the last 30 min</td></tr>';
+  setText('d-cfg-path', d.config_path);
+  document.getElementById('d-cfg').innerHTML = esc(d.config || '(file not found)').replace(/^(\[[a-z]+\])/gm, '<b>$1</b>');
+  setTimeout(() => { c.resize(); pc.resize(); }, 50);
+}
+
+// ---------- tabs ----------
+state.tab = 'book';
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tab-book').hidden = tab !== 'book';
+  document.getElementById('tab-prices').hidden = tab !== 'prices';
+  setTimeout(() => Object.values(charts).forEach(c => c.resize()), 30);
+  if (tab === 'prices') pollPrices().catch(() => {});
+}
+
+// ---------- prices tab ----------
+state.pxSort = { k: 'market_value', d: -1 };
+document.querySelectorAll('#t-px th[data-k]').forEach(th => th.addEventListener('click', () => { const k = th.dataset.k; if (state.pxSort.k === k) state.pxSort.d *= -1; else state.pxSort = { k, d: k === 'symbol' || k === 'name' || k === 'sector' ? 1 : -1 }; renderTickers(); }));
+const posBar = (p, out) => `<span class="pos"><s></s><i class="${out ? 'out' : ''}" style="left:${(Math.max(-0.08, Math.min(1.08, p)) * 100).toFixed(1)}%"></i></span> <span class="num ${out ? 'amber' : 'dim'}">${(p * 100).toFixed(0)}%</span>`;
+async function pollPrices() {
+  if (state.tab !== 'prices') return;
+  const stocks = await get('/api/stocks?history=300');
+  state.px = stocks.map(s => {
+    const h = s.history || [], last = h[h.length - 1], p1 = h.length > 60 ? h[h.length - 61] : h[0], p5 = h[0];
+    return { ...s, price: N(s.price), target_weight_pct: N(s.target_weight_pct), weight_pct: N(s.weight_pct), deviation: N(s.deviation), chg1: p1 ? (last - p1) / p1 : 0, chg5: p5 ? (last - p5) / p5 : 0, out: s.price > s.real_max || s.price < s.real_min, qty: s.qty || 0, market_value: N(s.market_value) || 0, unrealized_pnl: N(s.unrealized_pnl) || 0 };
+  });
+  const px = state.px, up = px.filter(s => s.chg5 > 0).length, down = px.filter(s => s.chg5 < 0).length, locked = px.filter(s => s.locked).length;
+  document.getElementById('px-strip').innerHTML = `<span><b>${px.length}</b> tickers</span><span class="up"><b>${up}</b> up over 5 min</span><span class="down"><b>${down}</b> down</span><span class="amber"><b>${locked}</b> block-locked</span><span>${(N(state.live?.rates.ticks_per_sec) || 0).toFixed(0)} ticks/s</span>`;
+  renderMarketMap(); renderTickers();
+}
+function renderMarketMap() {
+  const c = chart('c-map');
+  const bySector = {};
+  for (const s of state.px) { if (s.delisted) continue; (bySector[s.sector] ||= []).push(s); }
+  const color = v => { const t = Math.max(-1, Math.min(1, v / 0.01)); return t >= 0 ? `rgba(34,197,94,${0.25 + 0.7 * t})` : `rgba(239,68,68,${0.25 + 0.7 * -t})`; };
+  const data = Object.entries(bySector).map(([sector, list]) => ({
+    name: sector, children: list.map(s => ({ name: s.symbol, value: Math.max(0.5, s.weight), chg: s.chg5, price: s.price, full: s.name, locked: s.locked,
+      itemStyle: { color: color(s.chg5), borderColor: s.locked ? '#f59e0b' : '#0b1220', borderWidth: s.locked ? 2 : 1 } }))
+  }));
+  c.setOption({
+    tooltip: { formatter: p => p.data.full ? `<b>${p.name}</b> ${esc(p.data.full)}<br>${px(p.data.price)} · 5 min ${(p.data.chg * 100).toFixed(2)}%${p.data.locked ? '<br><span style="color:#f59e0b">block in progress · locked</span>' : ''}` : `<b>${p.name}</b>` },
+    series: [{ type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false }, left: 0, right: 0, top: 0, bottom: 0, leafDepth: 2,
+      levels: [{ itemStyle: { borderColor: '#0b1220', borderWidth: 4, gapWidth: 4 }, upperLabel: { show: true, height: 20, color: '#8b9bb8', fontSize: 11, fontWeight: 600 } }, { itemStyle: { gapWidth: 1 } }],
+      label: { formatter: p => `${p.name}\n${(p.data.chg * 100).toFixed(2)}%`, color: '#0b1220', fontWeight: 600, fontSize: 11 }, data }]
+  });
+  c.off('click'); c.on('click', p => { if (p.data?.full) openDrawer(p.name); });
+}
+function renderTickers() {
+  const { k, d } = state.pxSort;
+  const rows = [...state.px].sort((a, b) => { const x = a[k], y = b[k]; return (typeof x === 'number' && typeof y === 'number') ? (x - y) * d : String(x).localeCompare(String(y)) * d; });
+  document.querySelector('#t-px tbody').innerHTML = rows.map(s => `<tr class="clickable" data-sym="${s.symbol}"><td class="l sym">${s.symbol}${s.delisted ? ' <span class="dim">delisted</span>' : ''}</td><td class="l muted">${esc(s.name)}</td><td class="l dim">${esc(s.sector)}</td><td class="num">${px(s.price)}</td>
+    <td class="num ${cls(s.chg1)}">${(s.chg1 * 100).toFixed(2)}%</td><td class="num ${cls(s.chg5)}">${(s.chg5 * 100).toFixed(2)}%</td>
+    <td class="l"><span class="dirtag ${s.locked || s.pinned_price ? 'imp' : ''} ${s.dir > 0 ? 'up' : 'down'}">${s.dir > 0 ? '▲' : '▼'}${s.locked ? ' block locked' : ''}${s.pinned_price ? ' pinned ' + px(s.pinned_price) : ''}</span></td>
+    <td class="l">${posBar(s.real_pos, s.out)}</td><td class="l">${posBar(s.perceived_pos, false)}${s.perceived_is_real ? '' : ' <span class="amber">≠</span>'}</td>
+    <td class="num dim">${pct(s.target_weight_pct)}</td><td class="num">${pct(s.weight_pct)}</td><td class="num ${s.deviation > 0 ? 'up' : 'down'}">${signed(s.deviation, v => money(v, 1))}</td><td class="num">${s.qty ? int(s.qty) : '<span class="dim">–</span>'}</td><td class="num">${s.qty ? money(s.market_value, 2) : ''}</td><td class="num ${cls(s.unrealized_pnl)}">${s.qty ? signed(s.unrealized_pnl) : ''}</td><td>${sparkline(s.history, 110, 22)}</td></tr>`).join('');
+  setText('px-count', `${rows.length} tickers · sorted by ${k} · click a row for detail`);
+}
+
+// ---------- scheduling ----------
+function every(ms, fn) { const run = async () => { try { await fn(); } catch (e) { console.warn(fn.name, e.message); } }; run(); setInterval(run, ms); }
+every(1000, pollLive); every(2000, pollNav); every(2000, pollTape); every(3000, pollPnl); every(3000, pollPositions); every(10000, pollMV); every(2000, pollPrices);
+setInterval(() => { if (state.drawer) refreshDrawer().catch(() => {}); }, 3000);
+setInterval(() => setText('clock', new Date().toISOString().substr(11, 8)), 1000);
+</script>
+</body>
+</html>

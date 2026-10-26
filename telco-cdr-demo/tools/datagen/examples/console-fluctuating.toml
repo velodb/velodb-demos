@@ -1,0 +1,12 @@
+#   datagen --config examples/console-fluctuating.toml --rows 20
+
+[generation]
+spec = "fluctuating.toml"
+schema_type = "csv"
+rows = 20
+
+[threading]
+generator_threads = 8      # ignored: the spec is stateful, so one thread runs
+
+[sink]
+dest = "console"

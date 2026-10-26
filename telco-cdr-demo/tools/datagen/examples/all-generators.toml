@@ -1,0 +1,205 @@
+# Every generator, every field attribute. Run it as JSON to see the shapes:
+#
+#   datagen --config examples/console-all-generators.toml --rows 3
+version = 1
+
+# CSV rendering, used by the csv format only.
+[csv]
+delimiter = ","
+quote = "\""
+escape = "\""
+newline = "\n"
+null = ""          # what a null value becomes in CSV
+
+# What each row starts from: "row" (fresh), "batch" (the previous row's
+# values, reset at each batch) or "never" (always the previous row's values).
+[context]
+reset = "row"
+
+[batch]
+rows = 1000
+
+# --- ids and counters ---------------------------------------------------
+
+# A padded counter that stays parallel: threads claim blocks of it.
+[fields.id]
+order = -100                       # output position, lower first; ties by table order
+type = "sequence_string"
+template = "ord-{}"                # literal text with one {} for the counter
+start = 1
+step = 1
+width = 20                         # total width, counter zero-padded to fit
+
+# A plain integer counter. Stateful: forces one generator thread.
+# [fields.seq]
+# type = "sequence"
+# start = 1
+# step = 1
+
+[fields.uuid]
+type = "uuid"
+
+# --- numbers ------------------------------------------------------------
+
+[fields.age]
+type = "int_range"
+min = 18
+max = 90
+
+[fields.big]                       # beyond 64 bits, quoted; LARGEINT-sized
+type = "int_range"
+min = "170141183460469231731687303715884105000"
+max = "170141183460469231731687303715884105727"
+
+[fields.score]
+type = "float_range"
+min = 0.0
+max = 100.0
+precision = 2
+
+[fields.amount]
+type = "decimal_range"
+min = "1.00"
+max = "999.99"
+scale = 2
+
+# A random walk. Stateful: forces one generator thread. Commented out so
+# this spec keeps every thread; see fluctuating.toml.
+# [fields.temperature]
+# type = "fluctuating"
+# data_type = "double"             # int | float | double | decimal
+# start = 20.0
+# min = -10.0
+# max = 40.0
+# initial_direction = "random"     # up | down | random
+# step_min = 0.1
+# step_max = 0.5
+# noise = 0.2                      # jitter added to each step
+# flip_chance = 0.05               # chance per row of reversing direction
+# precision = 1
+
+# --- time ---------------------------------------------------------------
+
+[fields.created_at]
+type = "datetime_around"
+# base = "2024-06-01T00:00:00Z"   # defaults to now, refreshed as the run goes
+offset_seconds_min = -86400
+offset_seconds_max = 0
+format = "%Y-%m-%d %H:%M:%S"
+
+[fields.event_date]
+type = "datetime_range"
+start = "2024-01-01T00:00:00Z"
+end = "2024-12-31T23:59:59Z"
+format = "%Y-%m-%d"
+
+# --- choices ------------------------------------------------------------
+
+[fields.color]
+type = "choice"
+values = ["red", "green", "blue"]
+null_rate = 0.1                    # every generator takes null_rate
+
+[fields.status]
+type = "weighted_choice"
+values = [
+  { value = "active", weight = 80 },
+  { value = "inactive", weight = 15 },
+  { value = "blocked", weight = 5 },
+]
+
+[fields.constant]
+type = "constant"
+value = "fixed"
+
+# --- people and text ----------------------------------------------------
+
+[fields.email_domain]
+hidden = true                      # generated for others to use, never written
+type = "choice"
+values = ["example.com", "example.net"]
+
+[fields."customer.first_name"]     # a dotted path: a record for json, avro, protobuf
+type = "name"
+part = "first"                     # first | last | full
+
+[fields."customer.last_name"]
+type = "name"
+part = "last"
+
+[fields."customer.email"]          # a template reads other fields, dotted ones too
+type = "template"
+value = "{{lower customer.first_name}}.{{lower customer.last_name}}@{{email_domain}}"
+
+[fields."customer.email_random"]
+type = "email"
+
+[fields."customer.address"]
+type = "address"
+part = "full"                      # street | city | state | country | postal_code | full
+
+[fields.slug]                      # helpers: lower, upper, title, slug
+type = "template"
+value = "{{slug customer.last_name}}-{{upper status}}"
+
+[fields.bio]
+type = "lorem"
+words_min = 5
+words_max = 12
+
+[fields.token]
+type = "random_bytes"
+min_bytes = 16
+max_bytes = 16
+encoding = "base64url"             # hex | base64 | base64url
+
+# --- network ------------------------------------------------------------
+
+[fields.client_ip]
+type = "ipv4"
+cidr = "10.0.0.0/8"
+
+[fields.client_ip6]
+type = "ipv6"
+cidr = "2001:db8::/32"
+
+# --- nested -------------------------------------------------------------
+
+[fields.tags]
+type = "array"
+min_len = 0
+max_len = 3
+element = { type = "choice", values = ["new", "vip", "trial"] }
+
+[fields.attributes]
+type = "map"
+min_len = 1
+max_len = 3
+key = { type = "choice", values = ["tier", "region", "plan"] }
+value = { type = "int_range", min = 1, max = 9 }
+
+[fields.geo]
+type = "struct"
+fields = [
+  { name = "lat", gen = { type = "float_range", min = -90.0, max = 90.0, precision = 4 } },
+  { name = "lon", gen = { type = "float_range", min = -180.0, max = 180.0, precision = 4 } },
+]
+
+[fields.items]                     # an array of structs: elements generate per item
+type = "array"
+min_len = 1
+max_len = 2
+element = { type = "struct", fields = [
+  { name = "sku", gen = { type = "template", value = "SKU-{{upper status}}" } },
+  { name = "qty", gen = { type = "int_range", min = 1, max = 5 } },
+] }
+
+# --- code ---------------------------------------------------------------
+
+[fields.label]
+order = 100
+type = "javascript"
+function = "label"
+file = "label.js"                  # looked up from the working directory, then beside this spec
+deps = ["id", "age"]               # the fields the function reads; orders the graph
+parallel = true                    # the function keeps no state, so every thread runs it

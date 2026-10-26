@@ -1,0 +1,102 @@
+version: 1
+
+csv:
+  delimiter: ","
+  quote: "\""
+  escape: "\""
+  newline: "\n"
+  null: ""
+
+context:
+  reset: row
+
+batch:
+  rows: 1000
+
+fields:
+  - name: id
+    order: -100
+    gen:
+      type: sequence
+      start: 1
+      step: 1
+
+  - name: email_domain
+    hidden: true
+    gen:
+      type: choice
+      values:
+        - example.com
+        - example.net
+        - example.org
+
+  - name: first_name
+    gen:
+      type: name
+      part: first
+
+  - name: last_name
+    gen:
+      type: name
+      part: last
+
+  - name: email
+    gen:
+      type: template
+      value: "{{lower first_name}}.{{lower last_name}}.{{id}}@{{email_domain}}"
+
+  - name: age
+    gen:
+      type: int_range
+      min: 18
+      max: 90
+
+  - name: score
+    gen:
+      type: fluctuating
+      data_type: int
+      start: 50
+      min: 1
+      max: 100
+      initial_direction: random
+      step_min: 1
+      step_max: 3
+      flip_chance: 0.05
+
+  - name: token
+    gen:
+      type: random_bytes
+      min_bytes: 16
+      max_bytes: 16
+      encoding: base64url
+
+  - name: created_at
+    order: 100
+    gen:
+      type: datetime_around
+      offset_seconds_min: -86400
+      offset_seconds_max: 86400
+      format: "%Y-%m-%d %H:%M:%S"
+
+  - name: status
+    order: 200
+    gen:
+      type: weighted_choice
+      values:
+        - value: active
+          weight: 80
+        - value: inactive
+          weight: 15
+        - value: blocked
+          weight: 5
+
+  - name: label
+    order: 300
+    gen:
+      type: javascript
+      function: function_a
+      file: sample_script.js
+      deps:
+        - id
+      # Declare only the fields your function actually reads from ctx.
+      # Unlike the auto-deps behavior, explicit deps let other fields depend on this one.

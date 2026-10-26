@@ -21,7 +21,7 @@ case "$VELODB_HOST$VELODB_PASSWORD" in *example.com*|*change-me*) bad "placehold
 echo "tools"
 for t in python3 curl go cargo; do
   if command -v "$t" >/dev/null; then ok "$t  $("$t" --version 2>/dev/null | head -1 || "$t" version | head -1)"
-  else case "$t" in go) warn "go not found (needed for run-feeder.sh / run-web-server.sh)";;
+  else case "$t" in go) warn "go not found (needed for run-web-server.sh)";;
                     cargo) warn "cargo not found (needed only to generate data: run-gen.sh)";;
                     *) bad "$t not found";; esac; fi
 done

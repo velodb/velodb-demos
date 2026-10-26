@@ -1,0 +1,27 @@
+# CSV files, 10 MiB each, 100 files per folder, three writers in parallel.
+# Files: out/batch-NNNNN/part-wNN-NNNNNN.csv, each with its own header.
+#
+#   datagen --config examples/file-csv.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "csv"
+rows = 1000000
+
+[speed]
+generator_batch_rows = 5000
+queue_depth = 16
+
+[threading]
+sink_threads = 3
+
+[sink]
+dest = "file"
+
+[file]
+directory = "out"
+file_size = "10MiB"
+file_name_prefix = "part-"
+folder_prefix = "batch-"
+files_per_folder = 100
+header = true

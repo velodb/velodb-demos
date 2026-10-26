@@ -1,0 +1,33 @@
+# Parquet objects in S3, ready for a lakehouse or a Doris load:
+# s3://my-bucket/datagen/parquet/run-01/batch-NNNNN/part-wNN-NNNNNN.parquet
+#
+#   AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... datagen --config examples/s3-parquet.toml
+
+[generation]
+spec = "spec.toml"
+schema_type = "parquet"
+rows = 50000000
+
+[parquet]
+row_group_rows = 200000
+compression = "zstd"
+compression_level = 6      # cheap CPU for fewer bytes over the network
+
+[speed]
+generator_batch_rows = 10000
+queue_depth = 32
+
+[threading]
+sink_threads = 4
+
+[sink]
+dest = "s3"
+
+[s3]
+bucket = "my-bucket"
+prefix = "datagen/parquet/run-01/"
+region = "ap-southeast-1"
+file_size = "512MiB"
+files_per_folder = 50
+part_size = "16MiB"
+max_concurrent_parts = 4
