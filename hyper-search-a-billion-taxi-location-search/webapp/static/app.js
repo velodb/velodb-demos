@@ -21,9 +21,32 @@
 
   /* ---------- map ---------- */
   const map = L.map('map', {zoomControl: true, attributionControl: true}).setView([1.30, 103.85], 12);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, className: 'dark-tiles', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
+  // Basemap: OpenFreeMap "dark" vector style (free, no API key, no usage limits; https://openfreemap.org),
+  // rendered by MapLibre GL inside Leaflet. tile.openstreetmap.org 403s for some regions/networks and
+  // CARTO now requires an API key, so OSM raster is only a fallback (no WebGL / style unreachable).
+  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  function addOsmFallback() {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, className: 'dark-tiles', attribution: OSM_ATTR}).addTo(map).bringToBack();
+  }
+  function hasWebGL() {
+    try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; }
+  }
+  if (window.maplibregl && L.maplibreGL && hasWebGL()) {
+    const gl = L.maplibreGL({
+      style: 'https://tiles.openfreemap.org/styles/dark',
+      attributionControl: {customAttribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' + OSM_ATTR},
+    }).addTo(map);
+    let loaded = false;
+    const ml = gl.getMaplibreMap();
+    ml.once('load', () => { loaded = true; });
+    ml.on('error', (e) => {
+      if (loaded) return;
+      console.warn('OpenFreeMap basemap failed, falling back to OSM raster', e && e.error);
+      loaded = true; map.removeLayer(gl); addOsmFallback();
+    });
+  } else {
+    addOsmFallback();
+  }
   const circle = L.circle([S.center.lat, S.center.lon], {radius: S.radius, color: '#5aa9ff', weight: 1.5, fillColor: '#5aa9ff', fillOpacity: .08}).addTo(map);
   const pin = L.marker([S.center.lat, S.center.lon], {draggable: true, icon: L.divIcon({className: 'center-pin', iconSize: [18, 18]}), zIndexOffset: 1000}).addTo(map);
   const cellLayer = L.layerGroup().addTo(map);
