@@ -2,7 +2,7 @@
 # Start the hybrid-search web UI: the Python embedding service (query text ->
 # BGE vector, on the Apple GPU) and the Go server (UI + /api/search on Doris).
 #
-#   ./run-ui.sh                 # http://localhost:9121
+#   ./run-ui.sh                 # http://localhost:9121/aws-catalog/
 #   LISTEN=:9000 ./run-ui.sh    # different port
 #
 # Needs products.db (for the model/prefix metadata), the Go toolchain, and the VELODB_* connection

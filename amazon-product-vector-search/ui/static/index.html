@@ -146,8 +146,9 @@ $('reset').addEventListener('click', () => {
   $('minrating').value = '0'; $('minscore').value = 0; $('minscore').nextElementSibling.textContent = 'off';
 });
 
-fetch('/api/info').then(r => r.json()).then(i => { $('stats').innerHTML = `<b>${(+i.rows).toLocaleString()}</b> products in ${i.table}`; }).catch(() => { $('stats').textContent = 'API unreachable'; });
-fetch('/api/facets').then(r => r.json()).then(f => {
+// API paths are relative so the UI also works mounted under a prefix (e.g. /aws-catalog/ behind a proxy).
+fetch('api/info').then(r => r.json()).then(i => { $('stats').innerHTML = `<b>${(+i.rows).toLocaleString()}</b> products in ${i.table}`; }).catch(() => { $('stats').textContent = 'API unreachable'; });
+fetch('api/facets').then(r => r.json()).then(f => {
   for (const [col, list] of Object.entries(f)) {
     const dl = $('dl-' + col); if (!dl) continue;
     dl.innerHTML = list.map(x => `<option value="${esc(x.value)}">${(+x.count).toLocaleString()} products</option>`).join('');
@@ -177,7 +178,7 @@ async function search() {
   $('go').disabled = true; $('error').style.display = 'none';
   try {
     const t0 = performance.now();
-    const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch('api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     const wall = performance.now() - t0;
     if (!res.ok) throw new Error(data.error || res.statusText);

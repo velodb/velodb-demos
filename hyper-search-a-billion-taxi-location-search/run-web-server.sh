@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build and run the taxi hyper-search web UI (Go). Reads .env / the environment (see env.example) and mrt_stations.csv.
-#   ./run-web-server.sh                 # http://localhost:9727
+#   ./run-web-server.sh                 # http://localhost:9727/hyper-search/
 #   LISTEN=:8080 ./run-web-server.sh
 #   ./run-web-server.sh --dev-static webapp/static   # live-edit the frontend without rebuilding
 set -euo pipefail

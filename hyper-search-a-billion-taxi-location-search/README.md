@@ -105,7 +105,7 @@ Already loaded a table with an older version of this demo (auto + dynamic partit
 ### 6. Run the web UI
 
 ```bash
-./run-web-server.sh                 # http://localhost:9727
+./run-web-server.sh                 # http://localhost:9727/hyper-search/
 LISTEN=:8080 ./run-web-server.sh
 ```
 
@@ -119,7 +119,7 @@ export VELODB_DATABASE=hs_smoke VELODB_BUCKETS=4 VELODB_PARTITION_KEEP_DAYS=10
 ./check_env.sh
 ./create_table_doris.sh
 ./load_into_doris.sh --local data-small       # stream load of local parquet, same BASE / ts mapping
-./run-web-server.sh                           # open http://localhost:9727, pick an MRT station
+./run-web-server.sh                           # open http://localhost:9727/hyper-search/, pick an MRT station
 venv/bin/python doris_sql.py -e "DROP DATABASE hs_smoke"     # clean up
 ```
 
@@ -252,7 +252,7 @@ full 1 B rows to take on the order of 10–20 min depending on cluster size (`LO
 ## Web UI
 
 ```bash
-./run-web-server.sh            # builds webapp/ and serves http://localhost:9727 (LISTEN=:8080 to change)
+./run-web-server.sh            # builds webapp/ and serves http://localhost:9727/hyper-search/ (LISTEN=:8080 to change)
 ```
 
 - **Where**: MRT station picker (filterable) or click/drag on the map; radius 100–3000 m; look-back window.

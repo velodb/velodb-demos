@@ -2,10 +2,11 @@
 """Face similarity search web UI: photo -> face detection + ArcFace vector (local,
 Apple GPU) -> HNSW ANN top-k on Doris -> matching faces with scores.
 
-  python face-server.py              # http://localhost:8091
+  python face-server.py              # http://localhost:8091/vector-face-search/
   python face-server.py --port 9000
+  python face-server.py --base-path /     # serve at the root instead of /vector-face-search/
 
-Endpoints
+Endpoints (all under --base-path, default /vector-face-search)
   GET  /                      the UI (static/index.html)
   GET  /api/stats             row / person counts
   POST /api/search            {"image": dataURL|base64, "face": idx?, "top_k", "filters"}
@@ -41,6 +42,7 @@ from facemodel import FaceModel
 DB, TABLE = "face_search_demo", "faces"   # DB is replaced by VELODB_DATABASE in main()
 ENV = {}
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+BASE = "/vector-face-search"   # every web path is served under this prefix (--base-path)
 LABEL_OK_PCT = 35     # label_score_pct (label_score * 100) at/above which the dataset's name is trusted
 
 # ------------------------------------------------------------------ Doris pool
@@ -320,20 +322,40 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _strip_base(self):
+        """Path without the BASE prefix, or None after answering the request
+        (redirect BASE -> BASE/, 404 outside BASE). The UI uses relative URLs."""
+        if not BASE:
+            return self.path
+        path, sep, query = self.path.partition("?")
+        if path == BASE:
+            self.send_response(301)
+            self.send_header("Location", BASE + "/" + sep + query)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
+        if not path.startswith(BASE + "/"):
+            self._send(404, {"error": "not found"})
+            return None
+        return self.path[len(BASE):]
+
     def do_GET(self):
         try:
-            if self.path in ("/", "/index.html"):
+            path = self._strip_base()
+            if path is None:
+                return
+            if path in ("/", "/index.html"):
                 with open(os.path.join(STATIC, "index.html"), "rb") as fh:
                     return self._send(200, fh.read(), "text/html; charset=utf-8", "no-cache")
-            if self.path == "/api/stats":
+            if path == "/api/stats":
                 return self._send(200, stats())
-            if self.path.startswith("/api/samples"):
+            if path.startswith("/api/samples"):
                 return self._send(200, samples())
-            m = re.fullmatch(r"/api/thumbs\?ids=([\d,]*)", self.path)
+            m = re.fullmatch(r"/api/thumbs\?ids=([\d,]*)", path)
             if m:
                 ids = [int(x) for x in m.group(1).split(",") if x][:300]
                 return self._send(200, get_images(ids) if ids else {})
-            m = re.fullmatch(r"/api/image/(\d+)", self.path)
+            m = re.fullmatch(r"/api/image/(\d+)", path)
             if m:
                 data = get_image(int(m.group(1)))
                 if data is None:
@@ -345,13 +367,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            path = self._strip_base()
+            if path is None:
+                return
             n = int(self.headers.get("Content-Length", 0))
             if n > 40 * 1024 * 1024:
                 return self._send(413, {"error": "image too large"})
             req = json.loads(self.rfile.read(n) or b"{}")
-            if self.path == "/api/search":
+            if path == "/api/search":
                 return self._send(200, search_upload(req))
-            if self.path == "/api/search-by-id":
+            if path == "/api/search-by-id":
                 return self._send(200, search_by_id(req))
             self._send(404, {"error": "not found"})
         except Exception as e:
@@ -359,13 +384,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global pool, model, DB, ENV
+    global pool, model, DB, ENV, BASE
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8091)))
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--base-path", default=BASE, help='path prefix all web paths are served under ("" or / = at the root)')
     ap.add_argument("--pool", type=int, default=12, help="Doris connections")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
     args = ap.parse_args()
+    BASE = args.base_path.rstrip("/")
+    if BASE and not BASE.startswith("/"):
+        BASE = "/" + BASE
     ENV = load_env(args.env)
     ENV.setdefault("READ_TIMEOUT", "120")
     DB = ENV.get("VELODB_DATABASE") or DB
@@ -375,7 +404,7 @@ def main():
     dummy = np.zeros((640, 640, 3), np.uint8)
     model.detect(dummy)
     model.embed([np.zeros((112, 112, 3), np.uint8)])
-    print(f"face search UI on http://localhost:{args.port}  (Doris {ENV['VELODB_HOST']}, {DB}.{TABLE})")
+    print(f"face search UI on http://localhost:{args.port}{BASE}/  (Doris {ENV['VELODB_HOST']}, {DB}.{TABLE})")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 
 

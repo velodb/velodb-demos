@@ -8,6 +8,7 @@
 //	VELODB_HOST VELODB_MYSQL_PORT VELODB_USER VELODB_PASSWORD   Doris connection
 //	EMBED_URL   (default http://127.0.0.1:7234)                 embedding service
 //	LISTEN      (default :9121)                                 HTTP listen address
+//	BASE_PATH   (default /aws-catalog; "/" = at the root)       path prefix all web paths are served under
 package main
 
 import (
@@ -155,9 +156,22 @@ func main() {
 		writeJSON(w, map[string]any{"rows": n, "table": dbName + "." + tblName, "doris": cfg.Addr})
 	})
 
+	// The frontend uses relative URLs, so mounting under a prefix only needs the prefix stripped here.
+	var handler http.Handler = mux
+	base := strings.TrimRight(env("BASE_PATH", "/aws-catalog"), "/")
+	if base != "" {
+		if !strings.HasPrefix(base, "/") {
+			base = "/" + base
+		}
+		root := http.NewServeMux()
+		root.Handle(base+"/", http.StripPrefix(base, mux))
+		root.Handle(base, http.RedirectHandler(base+"/", http.StatusMovedPermanently))
+		handler = root
+	}
+
 	listen := env("LISTEN", ":9121")
-	log.Printf("UI listening on http://localhost%s", strings.TrimPrefix(listen, "0.0.0.0"))
-	log.Fatal(http.ListenAndServe(listen, mux))
+	log.Printf("UI listening on http://localhost%s%s/", strings.TrimPrefix(listen, "0.0.0.0"), base)
+	log.Fatal(http.ListenAndServe(listen, handler))
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

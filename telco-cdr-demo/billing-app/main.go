@@ -3,6 +3,7 @@
 //	VELODB_HOST, VELODB_MYSQL_PORT, VELODB_USER, VELODB_PASSWORD   cluster (MySQL protocol)
 //	VELODB_DATABASE   database holding call_log, data_stream_log, rate_plan (default telco_demo)
 //	LISTEN     http listen address (default :8088)
+//	BASE_PATH  serve under this path prefix, e.g. /telco-cdr-demo (default: at /)
 //	PARALLEL   concurrent INSERT statements per step (default 2)
 package main
 
@@ -95,9 +96,22 @@ func main() {
 	mux.HandleFunc("GET /api/bills/{month}/{msisdn}", app.handleBillDetail)
 	mux.HandleFunc("GET /api/bills/{month}/{msisdn}/pdf", app.handleBillPDF)
 
+	// BASE_PATH mounts the app under a prefix (e.g. /telco-cdr-demo behind a proxy); the UI uses relative URLs.
+	handler := logRequests(mux)
+	base := strings.TrimRight(env("BASE_PATH", ""), "/")
+	if base != "" {
+		if !strings.HasPrefix(base, "/") {
+			base = "/" + base
+		}
+		root := http.NewServeMux()
+		root.Handle(base+"/", http.StripPrefix(base, handler))
+		root.Handle(base, http.RedirectHandler(base+"/", http.StatusMovedPermanently))
+		handler = root
+	}
+
 	addr := env("LISTEN", ":8088")
-	log.Printf("telco-billing on http://localhost%s  (doris %s, database %s, parallel %d)", addr, cfg.Addr, cfg.DBName, app.parallel)
-	log.Fatal(http.ListenAndServe(addr, logRequests(mux)))
+	log.Printf("telco-billing on http://localhost%s%s/  (doris %s, database %s, parallel %d)", addr, base, cfg.Addr, cfg.DBName, app.parallel)
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
 
 func logRequests(h http.Handler) http.Handler {

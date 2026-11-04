@@ -137,7 +137,7 @@
     select(id);
     trailLayer.clearLayers();
     try {
-      const r = await fetch(`/api/trail?taxi_id=${id}&t=${new Date(S.t).toISOString()}&minutes=15`);
+      const r = await fetch(`api/trail?taxi_id=${id}&t=${new Date(S.t).toISOString()}&minutes=15`);
       const d = await r.json();
       if (d.error) return toast(d.error);
       const pts = d.points.map(p => [p.lat, p.lon]);
@@ -176,7 +176,7 @@
     const ctl = new AbortController(); S.inflight = ctl;
     const seq = ++S.fetchSeq;
     $('stat-ms').classList.add('busy');
-    const url = `/api/search?lat=${S.center.lat}&lon=${S.center.lon}&t=${new Date(S.t).toISOString()}&radius=${S.radius}&lookback=${S.lookback}`;
+    const url = `api/search?lat=${S.center.lat}&lon=${S.center.lon}&t=${new Date(S.t).toISOString()}&radius=${S.radius}&lookback=${S.lookback}`;
     try {
       const r = await fetch(url, {signal: ctl.signal});
       const d = await r.json();
@@ -198,7 +198,7 @@
     const t0 = performance.now();
     const tick = setInterval(() => { col.querySelector('.hist-ms').textContent = `${((performance.now() - t0) / 1000).toFixed(1)} s`; }, 100);
     try {
-      const d = await (await fetch(`/api/history?lat=${S.center.lat}&lon=${S.center.lon}&radius=${S.radius}&mode=${mode}`)).json();
+      const d = await (await fetch(`api/history?lat=${S.center.lat}&lon=${S.center.lon}&radius=${S.radius}&mode=${mode}`)).json();
       if (d.error) throw new Error(d.error);
       hist[mode] = d;
       col.querySelector('.hist-ms').textContent = d.query_ms >= 1000 ? `${(d.query_ms / 1000).toFixed(2)} s` : `${Math.round(d.query_ms)} ms`;
@@ -297,7 +297,7 @@
 
   /* ---------- boot ---------- */
   async function loadMeta(refresh = false) {
-    const d = await (await fetch('/api/meta' + (refresh ? '?refresh=1' : ''))).json();
+    const d = await (await fetch('api/meta' + (refresh ? '?refresh=1' : ''))).json();
     S.meta = d.meta; S.stations = d.stations;
     S.minTs = Date.parse(d.meta.min_ts); S.maxTs = Date.parse(d.meta.max_ts);
     $('meta-rows').textContent = fmtInt(d.meta.rows); $('meta-partitions').textContent = fmtInt(d.meta.partitions); $('hist-partitions-total').textContent = fmtInt(d.meta.partitions);
