@@ -119,5 +119,5 @@ details.sql pre { margin: 6px 0 0; white-space: pre-wrap; font: 11px/1.4 var(--m
 #hist-col-pruned .hist-ms { color: var(--accent); } #hist-col-nocell .hist-ms { color: var(--warn); }
 .hist-sub { font-size: 11px; color: var(--muted); }
 
-/* OSM tiles are light; invert + hue-rotate gives a dark basemap without an API key */
+/* Fallback only: OSM tiles are light; invert + hue-rotate gives a dark basemap without an API key */
 .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.5); }
