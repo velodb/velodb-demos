@@ -217,6 +217,7 @@ func main() {
 	envPath := flag.String("env", "../.env", "env file with VELODB_* settings (see env.example); VELODB_* environment variables override it")
 	stationsPath := flag.String("stations", "../mrt_stations.csv", "MRT station list")
 	devStatic := flag.String("dev-static", "", "serve static files from this directory instead of the embedded copy (live editing)")
+	basePath := flag.String("base-path", "/hyper-search", "path prefix all web paths are served under (\"\" or / = at the root)")
 	flag.Parse()
 
 	env := loadEnv(*envPath)
@@ -275,6 +276,19 @@ func main() {
 	mux.HandleFunc("/api/history", s.handleHistory)
 	mux.Handle("/", static)
 
-	log.Printf("listening on http://localhost%s", strings.TrimPrefix(*listen, "0.0.0.0"))
-	log.Fatal(http.ListenAndServe(*listen, mux))
+	// The frontend uses relative URLs, so mounting under a prefix only needs the prefix stripped here.
+	var handler http.Handler = mux
+	base := strings.TrimRight(*basePath, "/")
+	if base != "" {
+		if !strings.HasPrefix(base, "/") {
+			base = "/" + base
+		}
+		root := http.NewServeMux()
+		root.Handle(base+"/", http.StripPrefix(base, mux))
+		root.Handle(base, http.RedirectHandler(base+"/", http.StatusMovedPermanently))
+		handler = root
+	}
+
+	log.Printf("listening on http://localhost%s%s/", strings.TrimPrefix(*listen, "0.0.0.0"), base)
+	log.Fatal(http.ListenAndServe(*listen, handler))
 }

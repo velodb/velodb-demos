@@ -31,6 +31,7 @@ function dur(sec) {
 const phone = (s) => { s = String(s); return s.length === 10 && s.startsWith("65") ? `+65 ${s.slice(2, 6)} ${s.slice(6)}` : s; };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+// API paths are relative so the app also works mounted under a prefix (e.g. /telco-cdr-demo/ behind a proxy).
 async function api(path, opts = {}) {
   const r = await fetch(path, opts);
   const body = await r.json().catch(() => ({}));
@@ -189,7 +190,7 @@ function hbarChart(el, rows, { label, value, fmt, color = "--series-1" }) {
 // ---------------------------------------------------------------------------------------------
 async function loadOverview(refresh = false) {
   try {
-    const o = await api(`/api/overview?month=${encodeURIComponent(state.month)}${refresh ? "&refresh=1" : ""}`);
+    const o = await api(`api/overview?month=${encodeURIComponent(state.month)}${refresh ? "&refresh=1" : ""}`);
     $("conn").textContent = `${o.database} @ ${o.host.split(".")[0]}`;
     $("conn").title = `${o.host} / ${o.database} · ${o.parallel} parallel statements per step`;
     const sel = $("month");
@@ -215,7 +216,7 @@ async function startStep(step) {
   if (!state.month) return;
   if (step === "inject" && !confirm(`Insert duplicate rows into call_log for ${state.month}? This modifies the source table.`)) return;
   try {
-    await api(`/api/steps/${step}`, {
+    await api(`api/steps/${step}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ month: state.month, dup_rate: Number($("dup-rate").value) }),
     });
@@ -231,7 +232,7 @@ let pollTimer = null;
 async function pollJob() {
   clearTimeout(pollTimer);
   let j;
-  try { j = await api("/api/job"); } catch { pollTimer = setTimeout(pollJob, 3000); return; }
+  try { j = await api("api/job"); } catch { pollTimer = setTimeout(pollJob, 3000); return; }
   const running = j.status === "running";
   if (j.status !== "idle") renderJob(j);
   document.querySelectorAll("[data-run]").forEach((b) => (b.disabled = running));
@@ -317,7 +318,7 @@ async function loadDashboard() {
   if (!state.month) return;
   $("dash-month").textContent = state.month;
   let s;
-  try { s = await api(`/api/bills/summary?month=${state.month}`); } catch (e) { $("dash-ms").textContent = e.message; return; }
+  try { s = await api(`api/bills/summary?month=${state.month}`); } catch (e) { $("dash-ms").textContent = e.message; return; }
   const k = s.kpi || {};
   const has = Number(k.bills) > 0;
   if (!has) {
@@ -375,14 +376,14 @@ async function searchBills() {
   });
   const tbody = $("bills");
   try {
-    const r = await api("/api/bills?" + params);
+    const r = await api("api/bills?" + params);
     state.total = r.total;
     tbody.innerHTML = r.rows.length ? r.rows.map((b) => `<tr class="clickable" data-msisdn="${b.msisdn}">
       <td>${esc(b.bill_no)}</td><td>${phone(b.msisdn)} ${b.roaming ? '<span class="tag roam">roamed</span>' : ""}</td>
       <td><span class="tag">${esc(b.rate_plan)}</span></td>
       <td class="num">${fmtInt(b.dom_voice_min)}</td><td class="num">${fmtInt(b.sms_sent)}</td><td class="num">${fmtInt(b.data_total_mb)}</td>
       <td class="num">${fmtMoney(b.monthly_fee)}</td><td class="num">${fmtMoney(b.usage_charges)}</td><td class="num strong">${fmtMoney(b.total)}</td>
-      <td><a class="btn" href="/api/bills/${state.month}/${b.msisdn}/pdf" onclick="event.stopPropagation()">PDF</a></td></tr>`).join("")
+      <td><a class="btn" href="api/bills/${state.month}/${b.msisdn}/pdf" onclick="event.stopPropagation()">PDF</a></td></tr>`).join("")
       : `<tr><td colspan="10" class="muted">No bills match.</td></tr>`;
     const from = (r.page - 1) * r.size + 1, to = Math.min(r.page * r.size, r.total);
     $("bills-info").textContent = r.total ? `${fmtInt(from)}–${fmtInt(to)} of ${fmtInt(r.total)} bills · ${r.ms}ms` : `0 bills · ${r.ms}ms`;
@@ -405,9 +406,9 @@ async function openBill(msisdn) {
   $("d-title").textContent = phone(msisdn);
   $("d-sub").textContent = "loading…";
   $("d-body").innerHTML = "";
-  $("d-pdf").href = `/api/bills/${month}/${msisdn}/pdf`;
+  $("d-pdf").href = `api/bills/${month}/${msisdn}/pdf`;
   let d;
-  try { d = await api(`/api/bills/${month}/${msisdn}`); } catch (e) { $("d-sub").textContent = e.message; return; }
+  try { d = await api(`api/bills/${month}/${msisdn}`); } catch (e) { $("d-sub").textContent = e.message; return; }
   const b = d.bill, p = d.plan || {};
   $("d-eyebrow").textContent = `${b.bill_no} · ${month}`;
   $("d-sub").textContent = `${b.rate_plan} · ${b.subscriber_type.toLowerCase()} · 5 detail queries in ${d.ms}ms`;
@@ -472,7 +473,7 @@ function closeDrawer() { $("drawer").hidden = true; $("scrim").hidden = true; hi
 
 async function loadRuns() {
   try {
-    const runs = await api("/api/runs");
+    const runs = await api("api/runs");
     $("runs").innerHTML = runs.length ? runs.map((r) => `<tr><td>${esc(r.run_id)}</td><td>${esc(r.month)}</td>
       <td><span class="run-status ${esc(r.status)}">${esc(r.status)}</span></td><td>${esc(r.started_at)}</td>
       <td class="num">${dur(r.secs)}</td><td class="num">${r.tasks_done}/${r.tasks_total}</td><td class="msg">${esc(r.message || "")}</td></tr>`).join("")
@@ -486,7 +487,7 @@ async function loadRuns() {
 // wiring
 // ---------------------------------------------------------------------------------------------
 document.querySelectorAll("[data-run]").forEach((b) => b.addEventListener("click", () => startStep(b.dataset.run)));
-$("job-cancel").addEventListener("click", async () => { await api("/api/job/cancel", { method: "POST" }); pollJob(); });
+$("job-cancel").addEventListener("click", async () => { await api("api/job/cancel", { method: "POST" }); pollJob(); });
 $("month").addEventListener("change", async (e) => { state.month = e.target.value; await loadOverview(); loadDashboard(); });
 $("refresh").addEventListener("click", async () => { await loadOverview(true); loadDashboard(); loadRuns(); });
 $("go-dash").addEventListener("click", () => $("dash").scrollIntoView({ behavior: "smooth" }));

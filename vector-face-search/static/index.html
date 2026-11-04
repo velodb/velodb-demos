@@ -193,18 +193,18 @@ async function loadThumbs(root) {
   for (const im of imgs) if (thumbCache[im.dataset.face]) im.src = thumbCache[im.dataset.face];
   const need = [...new Set(imgs.filter(im => !im.src).map(im => im.dataset.face))];
   if (!need.length) return;
-  const got = await api('/api/thumbs?ids=' + need.join(','));
+  const got = await api('api/thumbs?ids=' + need.join(','));
   for (const id in got) thumbCache[id] = 'data:image/jpeg;base64,' + got[id];
   for (const im of imgs) if (!im.src && thumbCache[im.dataset.face]) im.src = thumbCache[im.dataset.face];
 }
 
 async function stats() {
-  const s = await api('/api/stats');
+  const s = await api('api/stats');
   if (s.error) { $('#stats').textContent = s.error; return; }
   $('#stats').innerHTML = `<b>${s.faces.toLocaleString()}</b> faces · <b>${s.names.toLocaleString()}</b> names · <b>${s.people.toLocaleString()}</b> identity centroids · <b>${s.verified.toLocaleString()}</b> verified labels`;
 }
 async function samples() {
-  const rows = await api('/api/samples');
+  const rows = await api('api/samples');
   if (rows.error) return;
   $('#samples').innerHTML = rows.map(r => `<div class="card" data-id="${r.face_id}">
       <img data-face="${r.face_id}" alt=""><div class="n">${esc(r.name)}</div></div>`).join('');
@@ -259,7 +259,7 @@ $('#snapBtn').onclick = () => {
   closeCam(); useImage(c.toDataURL('image/jpeg', 0.92));
 };
 $('#randBtn').onclick = async () => {
-  const rows = await api('/api/samples');
+  const rows = await api('api/samples');
   if (rows.length) searchById(rows[0].face_id);
 };
 $('#samples').onclick = e => { const c = e.target.closest('[data-id]'); if (c) searchById(+c.dataset.id); };
@@ -279,8 +279,8 @@ async function search() {
   const body = { top_k: +$('#topk').value, ef: +$('#ef').value, filters: filters() };
   let res;
   const t0 = performance.now();
-  if (current.kind === 'upload') res = await api('/api/search', { ...body, image: current.image, face: chosenFace });
-  else res = await api('/api/search-by-id', { ...body, face_id: current.face_id });
+  if (current.kind === 'upload') res = await api('api/search', { ...body, image: current.image, face: chosenFace });
+  else res = await api('api/search-by-id', { ...body, face_id: current.face_id });
   if (my !== seq) return;
   const total = performance.now() - t0;
   drawBoxes(res);

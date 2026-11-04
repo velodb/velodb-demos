@@ -12,7 +12,7 @@ combine semantic similarity with ordinary SQL `WHERE` filters.
 ./run-export.sh                      ->  export/*.jsonl       (JSON lines, vector as float array)
 ./run-load.sh                        ->  hybrid_search_demo.products in Doris (HNSW + inverted indexes)
 ./run-doris-search.sh "cozy throw blanket" --where "price < 40 AND average_rating >= 4.5"
-./run-ui.sh                          ->  http://localhost:9121  (web UI with hybrid-search knobs)
+./run-ui.sh                          ->  http://localhost:9121/aws-catalog/  (web UI with hybrid-search knobs)
 ```
 
 ## Configure
@@ -155,7 +155,7 @@ doris> sql                  # toggle SQL echo
 ## Web UI (`./run-ui.sh`)
 
 Go server in `ui/` (single binary, UI embedded) + `embed-server.py` (BGE model
-on the GPU, answers `POST /embed`). Open http://localhost:9121.
+on the GPU, answers `POST /embed`). Open http://localhost:9121/aws-catalog/.
 
 Knobs in the sidebar:
 

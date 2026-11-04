@@ -9,7 +9,7 @@ with one "average face" per person answers *"which celebrity does this face look
 ./run-embedding.sh   -> faces.db     download IMDB-WIKI faces (9.7 GB) + detect/align/embed every face (SQLite)   offline
 ./run-export.sh      -> export/      JSON lines: faces-*.jsonl (vector + labels + thumbnail), people-0000.jsonl  offline
 ./run-load.sh        -> Doris        <db>.faces + <db>.people, both with HNSW indexes (stream load)
-./run-web-server.sh  -> http://localhost:8091
+./run-web-server.sh  -> http://localhost:8091/vector-face-search/
 ./run-search.sh photo.jpg            command-line search
 ```
 
@@ -109,7 +109,7 @@ Each chunk is one stream load with its own label, retried up to 5 times with the
 ### 6. Run the web server
 
 ```bash
-./run-web-server.sh                   # http://localhost:8091
+./run-web-server.sh                   # http://localhost:8091/vector-face-search/
 PORT=9000 ./run-web-server.sh
 ./run-web-server.sh --host 0.0.0.0    # listen on all interfaces (default 127.0.0.1)
 ./run-search.sh photo.jpg --top 10 --where "gender = 'female'"     # same search from the command line
@@ -129,7 +129,7 @@ export VELODB_DATABASE=face_search_smoke VELODB_FACES_BUCKETS=1 VELODB_PEOPLE_BU
 ./check_env.sh
 ./run-load.sh
 ./run-search.sh some-photo.jpg --top 3
-./run-web-server.sh                              # open http://localhost:8091
+./run-web-server.sh                              # open http://localhost:8091/vector-face-search/
 venv/bin/python doris_sql.py -D information_schema -e "DROP DATABASE face_search_smoke"   # clean up
 rm faces.db && rm -r export                      # --limit never marks the shard done, but start clean anyway
 ```
